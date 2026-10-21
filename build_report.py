@@ -1,56 +1,174 @@
 """اجرای کامل: خواندن ورودی‌ها ← تطبیق ← ساخت گزارش اکسل و داشبورد HTML.
 
 اجرا:
-    python build_report.py
-خروجی‌ها در پوشهٔ output/ ساخته می‌شوند.
+    python build_report.py            # ساخت گزارش
+    python build_report.py --check    # فقط بررسی پیش‌نیازها و فایل‌های ورودی
+    python build_report.py --pause    # در پایان منتظر زدن Enter می‌ماند
+
+خروجی‌ها در پوشهٔ output/ ساخته می‌شوند و گزارش کامل در output/build.log ثبت می‌شود.
 """
 
 from __future__ import annotations
 
-import shutil
 import sys
 import time
+import traceback
 from pathlib import Path
 
-import pandas as pd
-
-from src.aggregate import tech_table
-from src.catalog import load_catalog
-from src.mapper import ProductMapper, enrich_warnings, product_table
-from src.report_excel import build_excel
-from src.report_html import build_html
-
 ROOT = Path(__file__).resolve().parent
+OUTPUT_DIR = ROOT / "output"
+LOG_FILE = OUTPUT_DIR / "build.log"
+
+# اجرای اسکریپت از هر پوشه‌ای مجاز باشد
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 WARNINGS_FILE = ROOT / "گزارش اخطار کيفي (3).xlsx"
 LISTDATA_FILE = ROOT / "ListData - 2026-10-21T094225.228.xlsx"
 CATALOG_FILE = ROOT / "گروه بندی محصولات.xlsx"
-OUTPUT_DIR = ROOT / "output"
 WARNINGS_SHEET = "گزارش اخطار کيفي"
 
+REQUIRED_MODULES = {
+    "pandas": "pandas",
+    "openpyxl": "openpyxl",
+    "rapidfuzz": "rapidfuzz",
+    "jdatetime": "jdatetime",
+}
 
+
+# --------------------------------------------------------------------- گزارش‌گیری
+def _setup_console() -> None:
+    """در ویندوز، چاپ متن فارسی را در کنسول فعال می‌کند."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
+def log(message: str = "") -> None:
+    print(message, flush=True)
+    try:
+        with LOG_FILE.open("a", encoding="utf-8") as handle:
+            handle.write(message + "\n")
+    except Exception:
+        pass
+
+
+def fail(message: str) -> None:
+    log("")
+    log("خطا: " + message)
+    log("")
+    log("راهنما: فایل README.md بخش «عیب‌یابی» را ببینید.")
+
+
+# --------------------------------------------------------------------- بررسی‌ها
+def check_dependencies() -> list[str]:
+    missing = []
+    for module, package in REQUIRED_MODULES.items():
+        try:
+            __import__(module)
+        except Exception:
+            missing.append(package)
+    return missing
+
+
+def check_inputs() -> list[Path]:
+    return [path for path in (WARNINGS_FILE, LISTDATA_FILE, CATALOG_FILE) if not path.exists()]
+
+
+def print_environment() -> None:
+    log(f"پایتون: {sys.version.split()[0]}  ({sys.executable})")
+    log(f"پوشهٔ پروژه: {ROOT}")
+    log("")
+    log("فایل‌های ورودی:")
+    for path in (WARNINGS_FILE, LISTDATA_FILE, CATALOG_FILE):
+        if path.exists():
+            size = path.stat().st_size / 1024
+            log(f"  [موجود]  {path.name}  ({size:,.0f} کیلوبایت)")
+        else:
+            log(f"  [پیدا نشد]  {path.name}")
+    log("")
+
+
+def run_check() -> int:
+    problems = 0
+    log("بررسی پیش‌نیازها")
+    log("=" * 60)
+    log(f"پایتون: {sys.version.split()[0]}  ({sys.executable})")
+    if sys.version_info < (3, 10):
+        log("  [خطا] نسخهٔ پایتون باید ۳.۱۰ یا بالاتر باشد.")
+        problems += 1
+    missing = check_dependencies()
+    if missing:
+        log("  [خطا] این کتابخانه‌ها نصب نیستند: " + ", ".join(missing))
+        log("        نصب با دستور:  pip install -r requirements.txt")
+        problems += 1
+    else:
+        log("  [OK] همهٔ کتابخانه‌های لازم نصب هستند.")
+    absent = check_inputs()
+    if absent:
+        log("  [خطا] این فایل‌های ورودی در پوشهٔ پروژه نیستند:")
+        for path in absent:
+            log("        " + path.name)
+        problems += 1
+    else:
+        log("  [OK] هر سه فایل ورودی موجود هستند.")
+    log("")
+    if problems:
+        log(f"نتیجه: {problems} مشکل پیدا شد.")
+        return 1
+    log("نتیجه: همه‌چیز آماده است؛ اجرا کنید:  python build_report.py")
+    return 0
+
+
+# --------------------------------------------------------------------- اجرا
 def main() -> int:
     started = time.time()
-    for path in (WARNINGS_FILE, LISTDATA_FILE, CATALOG_FILE):
-        if not path.exists():
-            print(f"فایل ورودی پیدا نشد: {path.name}", file=sys.stderr)
-            return 2
+    OUTPUT_DIR.mkdir(exist_ok=True)
+    LOG_FILE.write_text("", encoding="utf-8")
 
-    print("۱) خواندن فایل‌های ورودی…")
+    log("ساخت گزارش دسته‌بندی اخطارهای کیفی")
+    log("=" * 60)
+
+    missing = check_dependencies()
+    if missing:
+        fail("این کتابخانه‌ها نصب نیستند: " + ", ".join(missing))
+        log("دستور نصب:  pip install -r requirements.txt")
+        return 3
+
+    absent = check_inputs()
+    if absent:
+        fail("فایل‌های ورودی زیر پیدا نشدند: " + "، ".join(p.name for p in absent))
+        log("این فایل‌ها باید کنار build_report.py در پوشهٔ پروژه باشند.")
+        print_environment()
+        return 2
+
+    # ایمپورت‌ها بعد از بررسی انجام می‌شوند تا پیام خطا خوانا باشد
+    import pandas as pd
+
+    from src.aggregate import tech_table
+    from src.catalog import load_catalog
+    from src.mapper import ProductMapper, enrich_warnings, product_table
+    from src.report_excel import build_excel
+    from src.report_html import build_html
+
+    log("۱) خواندن فایل‌های ورودی…")
     warnings = pd.read_excel(WARNINGS_FILE, sheet_name=WARNINGS_SHEET)
     catalog = load_catalog(CATALOG_FILE)
-    print(f"   اخطار: {len(warnings):,} ردیف | کاتالوگ: {len(catalog.products):,} محصول")
+    log(f"   اخطار: {len(warnings):,} ردیف | کاتالوگ: {len(catalog.products):,} محصول")
 
-    print("۲) ساخت نقشهٔ محصولات و تطبیق اخطارها…")
+    log("۲) ساخت نقشهٔ محصولات و تطبیق اخطارها…")
     mapper = ProductMapper(LISTDATA_FILE, catalog)
     enriched = enrich_warnings(warnings, mapper)
     products = product_table(mapper)
     techs = tech_table(enriched)
-    print(f"   نقشه محصولات: {len(products):,} | شماره فنی یکتا: {len(techs):,}")
+    log(f"   نقشه محصولات: {len(products):,} | شماره فنی یکتا: {len(techs):,}")
 
     in_catalog = int((enriched["در فایل گروه‌بندی"] == "بله").sum())
     in_scope = int((enriched["در دامنه گروه‌بندی"] == "بله").sum())
     review = int((enriched["نیاز به بازبینی"] == "بله").sum())
-    print(f"   در کاتالوگ: {in_catalog:,} | در دامنه: {in_scope:,} | نیاز به بازبینی: {review:,}")
+    log(f"   در کاتالوگ: {in_catalog:,} | در دامنه: {in_scope:,} | نیاز به بازبینی: {review:,}")
 
     sources = {
         "warnings": WARNINGS_FILE.name,
@@ -58,25 +176,56 @@ def main() -> int:
         "catalog": CATALOG_FILE.name,
     }
 
-    OUTPUT_DIR.mkdir(exist_ok=True)
     excel_path = OUTPUT_DIR / "گزارش دسته‌بندی اخطارهای کیفی.xlsx"
     html_path = OUTPUT_DIR / "داشبورد اخطارهای کیفی.html"
+    data_path = OUTPUT_DIR / "داده کامل اخطارها.xlsx"
 
-    print("۳) ساخت گزارش اکسل…")
+    log("۳) ساخت گزارش اکسل…")
     build_excel(enriched, products, techs, excel_path, sources)
-    print(f"   {excel_path.relative_to(ROOT)}")
+    log("   " + str(excel_path.relative_to(ROOT)))
 
-    print("۴) ساخت داشبورد HTML…")
+    log("۴) ساخت داشبورد HTML…")
     build_html(enriched, html_path, sources)
-    shutil.copyfile(html_path, OUTPUT_DIR / "index.html")  # برای نمایش مستقیم با وب‌سرور
-    print(f"   {html_path.relative_to(ROOT)}")
+    log("   " + str(html_path.relative_to(ROOT)))
+    build_html(enriched, OUTPUT_DIR / "index.html", sources, data_file=OUTPUT_DIR / "dashboard-data.js")
+    log("   " + str((OUTPUT_DIR / "index.html").relative_to(ROOT)) + " + dashboard-data.js")
 
-    # خروجی کمکی برای بازبینی/ویرایش دستی نقشه‌ها
-    enriched.to_excel(OUTPUT_DIR / "داده کامل اخطارها.xlsx", index=False)
-    stop = time.time()
-    print(f"پایان در {stop - started:.1f} ثانیه.")
+    enriched.to_excel(data_path, index=False)
+    log("   " + str(data_path.relative_to(ROOT)))
+
+    log("")
+    log("فایل‌های ساخته‌شده:")
+    for path in (excel_path, html_path, data_path):
+        if path.exists():
+            log(f"  {path.name}  ({path.stat().st_size / 1024:,.0f} کیلوبایت)")
+    log("")
+    log(f"پایان در {time.time() - started:.1f} ثانیه. پوشهٔ خروجی: {OUTPUT_DIR}")
     return 0
 
 
+def _pause_if_needed() -> None:
+    if "--pause" in sys.argv or (sys.platform == "win32" and len(sys.argv) == 1 and sys.stdin.isatty()):
+        try:
+            input("\nبرای بستن پنجره Enter بزنید…")
+        except Exception:
+            pass
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    _setup_console()
+    try:
+        if "--check" in sys.argv:
+            code = run_check()
+        else:
+            code = main()
+    except Exception:
+        LOG_FILE.parent.mkdir(exist_ok=True)
+        with LOG_FILE.open("a", encoding="utf-8") as handle:
+            handle.write("\n" + traceback.format_exc() + "\n")
+        log("")
+        log("خطای پیش‌بینی‌نشده رخ داد:")
+        log(traceback.format_exc())
+        log("شرح کامل در فایل output/build.log ذخیره شد.")
+        code = 1
+    _pause_if_needed()
+    raise SystemExit(code)

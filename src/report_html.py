@@ -124,13 +124,37 @@ def _payload(enriched: pd.DataFrame, source_names: dict[str, str]) -> dict:
     }
 
 
-def build_html(enriched: pd.DataFrame, output_path: str | Path, source_names: dict[str, str] | None = None) -> Path:
+def build_html(
+    enriched: pd.DataFrame,
+    output_path: str | Path,
+    source_names: dict[str, str] | None = None,
+    data_file: str | Path | None = None,
+) -> Path:
+    """ساخت داشبورد.
+
+    اگر ``data_file`` داده شود، داده در یک فایل جاوااسکریپت جداگانه ذخیره می‌شود
+    (برای بارگذاری سریع‌تر در وب‌سرور/پیش‌نمایش)؛ در غیر این صورت همه‌چیز در یک
+    فایل HTML مستقل جاسازی می‌شود.
+    """
     source_names = source_names or {}
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     data = _payload(enriched, source_names)
     payload = json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
-    html = TEMPLATE.replace("__DATA_JSON__", payload)
+
+    if data_file is None:
+        script = f"<script>window.DASHBOARD_DATA = {payload};</script>"
+    else:
+        data_path = Path(data_file)
+        data_path.parent.mkdir(parents=True, exist_ok=True)
+        data_path.write_text(
+            "/* دادهٔ داشبورد اخطارهای کیفی - تولید خودکار */\n"
+            f"window.DASHBOARD_DATA = {payload};\n",
+            encoding="utf-8",
+        )
+        script = f'<script src="{data_path.name}"></script>'
+
+    html = TEMPLATE.replace("__DATA_SCRIPT__", script)
     output_path.write_text(html, encoding="utf-8")
     return output_path
 
@@ -415,8 +439,13 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
   </div>
 </div>
 
+__DATA_SCRIPT__
 <script>
-const DATA = __DATA_JSON__;
+const DATA = window.DASHBOARD_DATA;
+if(!DATA){
+  document.body.insertAdjacentHTML("afterbegin",'<div style="padding:40px;text-align:center;font-family:Tahoma;direction:rtl">دادهٔ داشبورد بارگذاری نشد. فایل داده (dashboard-data.js) باید کنار همین فایل HTML باشد.</div>');
+  throw new Error("dashboard data missing");
+}
 const GROUP_COLORS = {
   "Cluster Instrument":"#0f766e",
   "Nodes":"#2563eb",
@@ -871,9 +900,32 @@ function toCsv(rows){
   return "\ufeff"+head+"\n"+body;
 }
 function exportCsv(){
-  const blob=new Blob([toCsv(applyFilters())],{type:"text/csv;charset=utf-8"});
-  const url=URL.createObjectURL(blob); const a=document.createElement("a");
-  a.href=url; a.download="ekhtar-grouped.csv"; a.click(); URL.revokeObjectURL(url);
+  const csv=toCsv(applyFilters());
+  const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url; a.download="ekhtar-grouped.csv"; a.rel="noopener";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),10000);
+  // در پیش‌نمایش داخل iframe ممکن است دانلود مسدود شود؛ راه جایگزین نشان می‌دهیم
+  const sandboxed = (()=>{ try { return window.self!==window.top; } catch(e){ return true; } })();
+  if(sandboxed) showCsvFallback(csv,url);
+}
+function showCsvFallback(csv,url){
+  $("#modal-title").textContent="خروجی CSV";
+  $("#modal-body").innerHTML=`<div class="note-box" style="margin-top:0">فایل CSV آماده است. اگر دانلود به‌صورت خودکار شروع نشد (محدودیت پیش‌نمایش)، روی دکمهٔ «دانلود» بزنید یا متن زیر را کپی کنید.</div>
+    <div style="display:flex;gap:8px;margin:10px 0;flex-wrap:wrap">
+      <a class="btn primary" href="${url}" download="ekhtar-grouped.csv" target="_blank" rel="noopener">دانلود فایل CSV</a>
+      <button class="btn" id="copy-csv">کپی متن</button>
+      <span class="muted tiny" id="copy-state"></span>
+    </div>
+    <textarea id="csv-text" readonly style="width:100%;height:240px;direction:ltr;text-align:left;font-family:ui-monospace,monospace;font-size:11px;border:1px solid #e2e8f0;border-radius:10px;padding:8px;background:#f8fafc"></textarea>`;
+  $("#csv-text").value=csv;
+  $("#modal").classList.remove("hidden");
+  $("#copy-csv").addEventListener("click",async()=>{
+    try{ await navigator.clipboard.writeText(csv); $("#copy-state").textContent="کپی شد ✓"; }
+    catch(e){ $("#csv-text").select(); document.execCommand("copy"); $("#copy-state").textContent="کپی شد ✓"; }
+  });
 }
 renderMeta();
 initFilters();
