@@ -17,7 +17,10 @@ import csv
 import io
 import json
 import mimetypes
+import os
+import subprocess
 import threading
+import time
 import webbrowser
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -36,6 +39,92 @@ if str(ROOT) not in sys.path:
 from src import eight_d_store  # noqa: E402
 
 MAX_BODY = 200_000
+BUILD_LOG = OUTPUT / "rebuild.log"
+BUILD_TIMEOUT = 900
+BUILD_LOCK = threading.Lock()
+BUILD_STATE: dict = {
+    "state": "idle",
+    "started": None,
+    "finished": None,
+    "error": "",
+    "returncode": None,
+}
+
+
+def _build_snapshot() -> dict:
+    """وضعیت لحظه‌ای ساخت گزارش برای نمایش در داشبورد."""
+    with BUILD_LOCK:
+        snapshot = dict(BUILD_STATE)
+    started = snapshot.get("started")
+    if started:
+        end = snapshot.get("finished") or time.time()
+        snapshot["elapsed"] = round(end - started, 1)
+    else:
+        snapshot["elapsed"] = 0
+    log_tail = ""
+    if BUILD_LOG.exists():
+        try:
+            log_tail = BUILD_LOG.read_text(encoding="utf-8", errors="replace")[-4000:]
+        except OSError:
+            log_tail = ""
+    snapshot["log"] = log_tail
+    return snapshot
+
+
+def _run_build() -> None:
+    """اجرای build_report.py در پس‌زمینه؛ پورت سرور بلاک نمی‌شود."""
+    code = 1
+    error = ""
+    try:
+        with BUILD_LOG.open("w", encoding="utf-8") as handle:
+            process = subprocess.run(
+                [sys.executable, str(ROOT / "build_report.py")],
+                cwd=str(ROOT),
+                stdout=handle,
+                stderr=subprocess.STDOUT,
+                timeout=BUILD_TIMEOUT,
+                env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+            )
+        code = process.returncode
+    except subprocess.TimeoutExpired:
+        error = "ساخت گزارش بیش از ۱۵ دقیقه طول کشید و متوقف شد"
+    except Exception as exc:  # noqa: BLE001
+        error = str(exc)
+
+    if code != 0 and not error:
+        try:
+            tail = BUILD_LOG.read_text(encoding="utf-8", errors="replace").strip().splitlines()
+            error = tail[-1] if tail else f"ساخت گزارش با کد {code} متوقف شد"
+        except OSError:
+            error = f"ساخت گزارش با کد {code} متوقف شد"
+
+    with BUILD_LOCK:
+        BUILD_STATE.update(
+            state="done" if code == 0 and not error else "error",
+            finished=time.time(),
+            error=error,
+            returncode=code,
+        )
+
+
+def _start_build() -> bool:
+    """شروع ساخت؛ اگر ساخت دیگری در جریان است False برمی‌گرداند."""
+    with BUILD_LOCK:
+        if BUILD_STATE["state"] == "running":
+            return False
+        BUILD_STATE.update(
+            state="running",
+            started=time.time(),
+            finished=None,
+            error="",
+            returncode=None,
+        )
+    try:
+        BUILD_LOG.write_text("", encoding="utf-8")
+    except OSError:
+        pass
+    threading.Thread(target=_run_build, daemon=True).start()
+    return True
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -75,7 +164,20 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def send_response(self, code, message=None) -> None:  # noqa: D401
+        self._cache_control_sent = False
+        super().send_response(code, message)
+
+    def send_header(self, keyword, value) -> None:
+        if keyword.lower() == "cache-control":
+            self._cache_control_sent = True
+        super().send_header(keyword, value)
+
     def end_headers(self) -> None:
+        # داشبورد و فایل دادهٔ آن باید بعد از «به‌روزرسانی» تازه خوانده شوند.
+        path = urlparse(self.path).path.lower()
+        if not getattr(self, "_cache_control_sent", False) and path.endswith((".html", ".js")):
+            super().send_header("Cache-Control", "no-store")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -92,6 +194,9 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         path = unquote(urlparse(self.path).path)
+        if path in {"/api/rebuild", "/api/rebuild/", "/api/rebuild/status"}:
+            self._json(_build_snapshot())
+            return
         if path in {"/api/8d", "/api/8d/"}:
             entries = eight_d_store.load(STORE)
             serials = list(entries.keys())
@@ -133,6 +238,12 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         path = unquote(urlparse(self.path).path)
+        if path in {"/api/rebuild", "/api/rebuild/"}:
+            started = _start_build()
+            payload = _build_snapshot()
+            payload.update({"ok": True, "startedNow": started})
+            self._json(payload, 200 if started else 409)
+            return
         if path not in {"/api/8d", "/api/8d/"}:
             self._json({"error": "مسیر ناشناخته"}, 404)
             return
@@ -200,6 +311,7 @@ def main() -> int:
     print("=" * 60)
     print(f"  آدرس:            {url}")
     print(f"  ذخیرهٔ فرم‌ها:    {STORE}")
+    print("  به‌روزرسانی داده:  دکمهٔ «⟳ به‌روزرسانی داده‌ها» در داشبورد")
     print("  برای توقف:       Ctrl+C")
     print("=" * 60)
     if not args.no_browser:

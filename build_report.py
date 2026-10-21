@@ -180,6 +180,7 @@ def main() -> int:
     from src.report_excel import build_excel
     from src.report_html import build_html
     from src.overrides import apply_overrides, load_overrides
+    from src.status import PRIORITY_ORDER, add_priority
     from src.review import attach_review, eight_d_rows, grouping_checks, load_claims, load_review
 
     if "--defect-template" in sys.argv:
@@ -219,6 +220,18 @@ def main() -> int:
     enriched = add_branch(enriched, catalog)
     branch_counts = enriched["برنچ"].value_counts().to_dict()
     log("   برنچ: " + " | ".join(f"{k} {v:,}" for k, v in branch_counts.items()))
+
+    # وضعیت مؤثر و اولویت: اخطارهای باز قدیمی‌تر از یک سال خودکار خاتمه می‌یابند
+    enriched, status_stats = add_priority(enriched)
+    counts = status_stats["counts"]
+    log(
+        f"   اولویت اخطار: "
+        + " | ".join(f"{PRIORITY_ORDER[rank]} {counts.get(PRIORITY_ORDER[rank], 0):,}" for rank in range(5))
+    )
+    log(
+        f"   مبنای امروز: {status_stats['today']} | مرز یک‌سال: {status_stats['cutoff_label']} | "
+        f"خاتمهٔ خودکار: {status_stats['auto_closed']:,} | باز مؤثر: {status_stats['open']:,}"
+    )
 
     # توصیف ایراد مشتری، دسته‌بندی دوگانه و یکسان‌سازی علت‌های بررسی
     defect_overrides = {}
@@ -332,6 +345,7 @@ def main() -> int:
         checks=checks,
         unmatched=unmatched_review,
         entries=entries,
+        status_stats=status_stats,
     )
     log("   " + str(html_path.relative_to(ROOT)))
     build_html(
@@ -342,6 +356,7 @@ def main() -> int:
         checks=checks,
         unmatched=unmatched_review,
         entries=entries,
+        status_stats=status_stats,
     )
     log("   " + str((OUTPUT_DIR / "index.html").relative_to(ROOT)) + " + dashboard-data.js")
 

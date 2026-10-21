@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -19,6 +20,7 @@ from .aggregate import (
     vehicle_summary,
     year_summary,
 )
+from .status import AUTO_COLUMN, DATE_KEY, PRIORITY_COLUMN, PRIORITY_RANK, RAW_COLUMN
 from .taxonomy import OUT_GROUP
 
 
@@ -55,8 +57,10 @@ def _payload(
     checks: pd.DataFrame | None = None,
     unmatched: pd.DataFrame | None = None,
     entries: dict[str, dict] | None = None,
+    status_stats: dict | None = None,
 ) -> dict:
     entries = entries or {}
+    status_stats = status_stats or {}
     records: list[dict] = []
     for _, row in enriched.iterrows():
         year = row.get("سال")
@@ -72,6 +76,7 @@ def _payload(
                 "date": _clean_text(row["تاریخ تایید"]),
                 "month": _clean_text(row["ماه شمسی"]),
                 "monthKey": month_key,
+                "dateKey": int(row[DATE_KEY]) if pd.notna(row.get(DATE_KEY)) else 0,
                 "year": int(year) if pd.notna(year) else 0,
                 "car": _clean_text(row["گروه خودرو"]),
                 "make": _clean_text(row["گروه ساخت"]),
@@ -93,6 +98,10 @@ def _payload(
                 "scoreMaker": score_maker,
                 "grade": _clean_text(row["گرید ایراد"]),
                 "status": _clean_text(row["وضعیت اخطار"]),
+                "rawStatus": _clean_text(row.get(RAW_COLUMN, "")),
+                "autoClosed": row.get(AUTO_COLUMN) == "بله",
+                "priority": int(row[PRIORITY_RANK]) if pd.notna(row.get(PRIORITY_RANK)) else 5,
+                "priorityLabel": _clean_text(row.get(PRIORITY_COLUMN, "")),
                 "open": row["وضعیت اخطار"] != "خاتمه يافته",
                 "stAction": _clean_text(row["وضعیت اقدام کوتاه مدت"]),
                 "mtAction": _clean_text(row["وضعیت اقدام میان مدت"]),
@@ -136,6 +145,10 @@ def _payload(
             }
         )
 
+    # ترتیب پیش‌فرض: اولویت (باز سال جاری، باز یک‌سال، بدون تاریخ، خودکار، خاتمه)
+    # و در هر اولویت، جدیدترین تاریخ اول.
+    records.sort(key=lambda item: (item["priority"], -item["dateKey"], -item["id"]))
+
     groups = group_summary(enriched)
     families = family_summary(enriched)
     products = product_summary(enriched)
@@ -175,6 +188,13 @@ def _payload(
         ),
         "formFields": FORM_FIELDS,
         "formStatuses": list(STATUS_OPTIONS),
+        "statusRule": {
+            "today": status_stats.get("today", ""),
+            "cutoff": status_stats.get("cutoff_label", ""),
+            "currentYear": status_stats.get("current_year", 0),
+            "counts": status_stats.get("counts", {}),
+            "autoClosed": status_stats.get("auto_serials", []),
+        },
         "eightD": entries,
         "eightDStats": {
             "total": int(
@@ -198,6 +218,7 @@ def build_html(
     checks: pd.DataFrame | None = None,
     unmatched: pd.DataFrame | None = None,
     entries: dict[str, dict] | None = None,
+    status_stats: dict | None = None,
 ) -> Path:
     """ساخت داشبورد.
 
@@ -208,7 +229,7 @@ def build_html(
     source_names = source_names or {}
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    data = _payload(enriched, source_names, checks, unmatched, entries)
+    data = _payload(enriched, source_names, checks, unmatched, entries, status_stats)
     payload = json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
 
     if data_file is None:
@@ -221,7 +242,7 @@ def build_html(
             f"window.DASHBOARD_DATA = {payload};\n",
             encoding="utf-8",
         )
-        script = f'<script src="{data_path.name}"></script>'
+        script = f'<script src="{data_path.name}?v={int(time.time())}"></script>'
 
     html = TEMPLATE.replace("__DATA_SCRIPT__", script)
     output_path.write_text(html, encoding="utf-8")
@@ -412,7 +433,10 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
       <p>محصول / خانواده / گروه محصول — بر پایه کاتالوگ راهکاران و فایل گروه‌بندی محصولات</p>
     </div>
   </div>
-  <div class="meta" id="meta"></div>
+  <div class="meta" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:flex-end">
+    <div id="meta"></div>
+    <button class="btn" id="refresh-data" title="ساخت دوبارهٔ گزارش از فایل‌های ورودی (بدون دانلود مجدد پوشه)" style="background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.35);padding:9px 14px;white-space:nowrap">⟳ به‌روزرسانی داده‌ها</button>
+  </div>
 </header>
 <nav class="tabs" id="tabs">
   <button class="tab active" data-tab="overview">نمای کلی</button>
@@ -436,7 +460,8 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
   <div class="field"><label>از ماه</label><select id="f-from"></select></div>
   <div class="field"><label>تا ماه</label><select id="f-to"></select></div>
   <div class="field" style="grid-column:span 3"><label>جستجو (شرح قطعه، شماره فنی، محصول، سریال)</label><input id="f-q" placeholder="مثلاً NBCM یا جلوآمپر یا IK01750880"></div>
-  <div class="field" style="grid-column:span 2"><label>وضعیت اخطار</label><select id="f-status"></select></div>
+  <div class="field" style="grid-column:span 2"><label>وضعیت مؤثر اخطار</label><select id="f-status"></select></div>
+  <div class="field"><label>اولویت اخطار</label><select id="f-priority"></select></div>
   <div class="field"><label>برگه بررسی</label><select id="f-review"></select></div>
   <div class="filter-actions" style="grid-column:span 4">
     <button class="btn" id="reset">پاک‌کردن</button>
@@ -496,10 +521,12 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
   </section>
 
   <section class="tab-panel" id="tab-warnings">
+    <div class="quality-note" id="priority-note" style="margin:0 0 12px"></div>
     <div class="card">
       <div class="toolbar">
         <h3 style="margin:0">فهرست اخطارها <span class="hint" id="warnings-count"></span></h3>
         <div class="right">
+          <select id="warning-sort" class="btn" style="padding:8px 10px"><option value="priority">ترتیب: اولویت، سپس جدیدترین</option><option value="date">ترتیب: فقط جدیدترین</option></select>
           <div class="search-mini"><input id="warning-search" placeholder="جستجو در شرح قطعه/شماره فنی/سریال"></div>
           <select id="page-size" class="btn" style="padding:8px 10px"><option value="25">۲۵ ردیف</option><option value="50">۵۰ ردیف</option><option value="100">۱۰۰ ردیف</option></select>
         </div>
@@ -648,7 +675,14 @@ const faDigits = s => String(s??"").replace(/\d/g,d=>"۰۱۲۳۴۵۶۷۸۹"[d]);
 const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const color = g => GROUP_COLORS[g] || "#64748b";
 const gLabel = g => GROUP_SHORT[g] || g;
-const statusBadge = r => r.open ? '<span class="badge amber">باز</span>' : '<span class="badge green">خاتمه</span>';
+const statusBadge = r => {
+  if(r.autoClosed) return `<span class="badge violet" title="وضعیت ثبت‌شده: ${esc(r.rawStatus||"—")}">خاتمهٔ خودکار</span>`;
+  return r.open ? '<span class="badge amber">باز</span>' : `<span class="badge green" title="وضعیت ثبت‌شده: ${esc(r.rawStatus||"—")}">خاتمه</span>`;
+};
+const priorityBadge = r => {
+  const cls={1:"red",2:"amber",3:"slate",4:"violet",5:"green"}[r.priority]||"slate";
+  return `<span class="badge ${cls}">${esc(r.priorityLabel||"—")}</span>`;
+};
 const confBadge = c => {
   const cls = c==="قطعی"||c==="بالا" ? "green" : c==="متوسط" ? "amber" : c==="پایین" ? "red" : "slate";
   return `<span class="badge ${cls}">${esc(c||"—")}</span>`;
@@ -656,7 +690,7 @@ const confBadge = c => {
 const reviewBadge = r => r.review ? '<span class="badge red">بازبینی</span>' : "";
 const catalogBadge = r => r.inCatalog ? '<span class="badge green">کاتالوگ</span>' : (r.inScope ? '<span class="badge slate">سایر</span>' : '<span class="badge slate">خارج</span>');
 
-const state = {group:"",family:"",product:"",car:"",grade:"",status:"",year:"",from:"",to:"",q:"",tab:"overview",
+const state = {group:"",family:"",product:"",car:"",grade:"",status:"",priority:"",year:"",from:"",to:"",q:"",tab:"overview",warningSort:"priority",
   review:"",branch:"",defect:"",defectCat:"all",productQ:"",warningQ:"",reviewQ:"",defectQ:"",formQ:"",formStatus:"",formScope:"working",
   page:1,pageSize:25,productSort:{key:"warnings",dir:-1},trendMode:"year"};
 let currentProducts = [];
@@ -664,6 +698,12 @@ let currentWarnings = [];
 let currentReviews = [];
 
 function monthKey(r){ return r.monthKey || 0; }
+function byPriority(a,b){
+  return (a.priority||9)-(b.priority||9) || (b.dateKey||0)-(a.dateKey||0) || (b.id||0)-(a.id||0);
+}
+function byNewest(a,b){
+  return (b.dateKey||0)-(a.dateKey||0) || (a.priority||9)-(b.priority||9) || (b.id||0)-(a.id||0);
+}
 function haystack(r){
   return [r.part,r.origin,r.tech,r.code,r.rahkaran,r.product,r.family,r.group,r.branch,r.car,r.id,r.error,r.type,r.cause,r.causeStd,r.m6,r.defect,r.defectCat,r.defectGroup,r.action].join(" ").toLowerCase();
 }
@@ -679,6 +719,7 @@ function applyFilters(){
     if(state.grade && r.grade!==state.grade) return false;
     if(state.status==="open" && !r.open) return false;
     if(state.status==="closed" && r.open) return false;
+    if(state.priority && String(r.priority)!==state.priority) return false;
     if(state.review==="yes" && !r.hasReview) return false;
     if(state.review==="no" && r.hasReview) return false;
     if(state.year && String(r.year)!==state.year) return false;
@@ -721,8 +762,22 @@ function renderMeta(){
   $("#footer").innerHTML = `داشبورد تولیدشده از ${fmt(k.warnings)} ردیف اخطار · ${fmt(k.tech)} شماره فنی یکتا · ${fmt(k.products)} محصول · ${pct(k.in_scope_pct)} در دامنه گروه‌بندی`;
 }
 
+function renderPriorityNote(){
+  const el=$("#priority-note"); if(!el) return;
+  const rule=DATA.statusRule||{}, counts=rule.counts||{};
+  const n=key=>fmt(counts[key]||0);
+  const auto=(rule.autoClosed||[]).map(item=>item["سریال اخطار"]);
+  el.innerHTML=`<b>ترتیب پیش‌فرض:</b> اولویت اخطار، سپس جدیدترین تاریخ. `+
+    `<b>${n("باز — سال جاری")}</b> اخطار باز سال ${faDigits(rule.currentYear||"")} در اولویت اول · `+
+    `<b>${n("باز — یک‌سال گذشته")}</b> اخطار باز یک‌سال گذشته (مرز ${faDigits(rule.cutoff||"—")}) · `+
+    `<b>${n("باز — بدون تاریخ")}</b> اخطار باز بدون تاریخ · `+
+    `<b>${n("خاتمهٔ خودکار")}</b> اخطار قدیمی‌تر خودکار خاتمه‌یافته${auto.length?` (سریال ${auto.map(value=>esc(value)).join("، ")})`:""}. `+
+    `<span class="muted tiny">مبنا: امروز ${faDigits(rule.today||"—")} · برای دیدن هر گروه از فیلتر «اولویت اخطار» استفاده کنید.</span>`;
+}
+
 function renderKpis(rows){
   const total=rows.length, qty=sum(rows,"qty"), score=sum(rows,"score"), open=rows.filter(r=>r.open).length;
+  const auto=rows.filter(r=>r.autoClosed).length;
   const inScope=rows.filter(r=>r.inScope).length, inCatalog=rows.filter(r=>r.inCatalog).length;
   const products=uniq(rows,"product"), review=rows.filter(r=>r.review).length;
   const reviewed=rows.filter(r=>r.hasReview).length;
@@ -732,7 +787,7 @@ function renderKpis(rows){
     ["نمره منفی مرجع",fmt(score),"مجموع امتیاز","violet"],
     ["محصولات درگیر",fmt(products),"محصول متمایز","amber"],
     ["پوشش گروه‌بندی",pct(total?inScope/total:0),`${fmt(inScope)} ردیف در دامنه`,"rose"],
-    ["اخطارهای باز",fmt(open),`${fmt(reviewed)} برگه بررسی (${pct(total?reviewed/total:0)})`,"slate"]
+    ["اخطارهای باز",fmt(open),`${fmt(auto)} خودکار خاتمه · ${fmt(reviewed)} برگه بررسی (${pct(total?reviewed/total:0)})`,"slate"]
   ];
   $("#kpis").innerHTML=cards.map(([l,v,s,c])=>`<div class="kpi ${c}"><div class="label">${l}</div><div class="value">${v}</div><div class="sub">${s}</div></div>`).join("");
 }
@@ -1013,16 +1068,17 @@ function renderProductsTab(rows){
 }
 function renderWarningsTab(rows){
   const q=state.warningQ.trim().toLowerCase();
-  let items=rows;
+  let items=(rows||[]).slice().sort(state.warningSort==="date"?byNewest:byPriority);
   if(q) items=items.filter(r=>haystack(r).includes(q));
   currentWarnings=items;
+  renderPriorityNote();
   const total=items.length, pages=Math.max(1,Math.ceil(total/state.pageSize));
   if(state.page>pages) state.page=pages;
   const start=(state.page-1)*state.pageSize;
   const page=items.slice(start,start+state.pageSize);
   $("#warnings-count").textContent=`${fmt(total)} ردیف · نمایش ${fmt(page.length)} ردیف`;
   $("#warnings-table").innerHTML=`<thead><tr>
-    <th>سریال</th><th>تاریخ</th><th>خودرو</th><th>شرح قطعه</th><th>ایراد مشتری</th><th>شماره فنی</th><th>محصول راهکاران</th><th>خانواده</th><th>محصول</th><th>گروه</th><th>برنچ</th><th>گرید</th><th>وضعیت</th><th>قطعات</th><th>نمره</th><th>تطبیق</th></tr></thead>
+    <th>سریال</th><th>تاریخ</th><th>خودرو</th><th>شرح قطعه</th><th>ایراد مشتری</th><th>شماره فنی</th><th>محصول راهکاران</th><th>خانواده</th><th>محصول</th><th>گروه</th><th>برنچ</th><th>گرید</th><th>وضعیت</th><th>اولویت</th><th>قطعات</th><th>نمره</th><th>تطبیق</th></tr></thead>
     <tbody>${page.map(r=>`<tr class="clickable" data-id="${r.id}">
       <td class="num">${esc(r.id)}</td><td class="muted tiny">${esc(faDigits(r.date))}</td><td class="tiny">${esc(r.car)}</td>
       <td title="${esc(r.part)}">${esc(r.part.length>46?r.part.slice(0,46)+"…":r.part)}</td>
@@ -1031,7 +1087,7 @@ function renderWarningsTab(rows){
       <td class="tiny">${esc(r.family)}</td><td class="tiny">${esc(r.product)}</td>
       <td class="tiny"><span class="group-pill"><span class="dot" style="background:${color(r.group)}"></span>${esc(gLabel(r.group))}</span></td>
       <td class="tiny">${esc(r.branch||"—")}</td>
-      <td class="num">${esc(r.grade)}</td><td>${statusBadge(r)}</td><td class="num">${fmt(r.qty)}</td><td class="num">${fmt(r.score)}</td>
+      <td class="num">${esc(r.grade)}</td><td>${statusBadge(r)}</td><td class="tiny">${priorityBadge(r)}</td><td class="num">${fmt(r.qty)}</td><td class="num">${fmt(r.score)}</td>
       <td>${confBadge(r.confidence)} ${reviewBadge(r)}</td></tr>`).join("")}</tbody>`;
   $$("#warnings-table tbody tr").forEach(tr=>tr.addEventListener("click",()=>openWarning(Number(tr.dataset.id))));
   renderPager($("#warnings-pager"),total,state.page,state.pageSize,p=>{state.page=p;renderWarningsTab(applyFilters());});
@@ -1396,6 +1452,8 @@ function openWarning(id){
     <div class="k">قطعات معیوب</div><div class="v">${fmt(r.qty)}</div>
     <div class="k">نمره منفی</div><div class="v">${fmt(r.score)} (سازنده: ${fmt(r.scoreMaker)})</div>
     <div class="k">گرید / وضعیت</div><div class="v">${esc(r.grade)} · ${statusBadge(r)}</div>
+    <div class="k">اولویت اخطار</div><div class="v">${priorityBadge(r)} ${r.rawStatus&&r.rawStatus!==r.status?`<span class="muted tiny">ثبت‌شده: ${esc(r.rawStatus)}</span>`:""}</div>
+    ${r.autoClosed?`<div class="k">خاتمهٔ خودکار</div><div class="v">این اخطار با وضعیت «${esc(r.rawStatus)}» ثبت شده بود؛ چون قدیمی‌تر از یک سال است، خودکار خاتمه‌یافته در نظر گرفته شد.</div>`:""}
     <div class="k">محل صدور</div><div class="v">${esc(r.location||"—")}</div>
     <div class="k">نوع ایراد / خطا</div><div class="v">${esc(r.type||"—")} · ${esc(r.error||"—")}</div>
     <div class="k">وضعیت اقدام</div><div class="v">${esc(stageName(r.status))} · کوتاه‌مدت: ${esc(r.stAction||"—")} · میان‌مدت: ${esc(r.mtAction||"—")}</div>
@@ -1476,6 +1534,9 @@ function initFilters(){
   fillSelect($("#f-grade"),grades,state.grade);
   $("#f-status").innerHTML=`<option value="">همه</option><option value="open">باز</option><option value="closed">خاتمه‌یافته</option>`;
   $("#f-review").innerHTML=`<option value="">همه</option><option value="yes">دارای برگه بررسی</option><option value="no">بدون برگه بررسی</option>`;
+  $("#f-priority").innerHTML=`<option value="">همه اولویت‌ها</option>`+
+    [["1","باز — سال جاری"],["2","باز — یک‌سال گذشته"],["3","باز — بدون تاریخ"],["4","خاتمهٔ خودکار"],["5","خاتمه‌یافته"]]
+      .map(([value,label])=>`<option value="${value}">${label}</option>`).join("");
   $("#f-year").innerHTML=`<option value="">همه سال‌ها</option>`+years.map(y=>`<option value="${y}">${faDigits(y)}</option>`).join("");
   refreshMonthSelects();
   syncSelects();
@@ -1486,6 +1547,7 @@ function initFilters(){
   $("#f-car").addEventListener("change",e=>{state.car=e.target.value;state.page=1;render();});
   $("#f-grade").addEventListener("change",e=>{state.grade=e.target.value;state.page=1;render();});
   $("#f-status").addEventListener("change",e=>{state.status=e.target.value;state.page=1;render();});
+  $("#f-priority").addEventListener("change",e=>{state.priority=e.target.value;state.page=1;render();});
   $("#f-review").addEventListener("change",e=>{state.review=e.target.value;state.page=1;render();});
   $("#f-year").addEventListener("change",e=>{
     state.year=e.target.value; state.from=""; state.to=""; state.page=1;
@@ -1498,11 +1560,11 @@ function initFilters(){
   let timer=null;
   $("#f-q").addEventListener("input",e=>{clearTimeout(timer);timer=setTimeout(()=>{state.q=e.target.value;state.page=1;render();},180);});
   $("#reset").addEventListener("click",()=>{
-    Object.assign(state,{group:"",family:"",product:"",branch:"",defect:"",car:"",grade:"",status:"",year:"",from:"",to:"",q:"",review:"",productQ:"",warningQ:"",reviewQ:"",defectQ:"",formQ:"",formStatus:"",page:1});
+    Object.assign(state,{group:"",family:"",product:"",branch:"",defect:"",car:"",grade:"",status:"",priority:"",year:"",from:"",to:"",q:"",review:"",productQ:"",warningQ:"",reviewQ:"",defectQ:"",formQ:"",formStatus:"",page:1,warningSort:"priority"});
     $("#f-q").value=""; $("#product-search").value=""; $("#warning-search").value=""; $("#review-search").value="";
     $("#defect-search").value=""; $("#form-search").value=""; $("#form-status-filter").value=""; $("#f-branch").value=""; $("#form-scope").value="working";
     syncSelects(); refreshMonthSelects();
-    $("#f-car").value="";$("#f-grade").value="";$("#f-status").value="";$("#f-year").value="";$("#f-review").value="";$("#f-from").value="";$("#f-to").value="";
+    $("#f-car").value="";$("#f-grade").value="";$("#f-status").value="";$("#f-priority").value="";$("#warning-sort").value="priority";$("#f-year").value="";$("#f-review").value="";$("#f-from").value="";$("#f-to").value="";
     render();
   });
   $("#export").addEventListener("click",exportCsv);
@@ -1510,6 +1572,7 @@ function initFilters(){
   $("#page-size").addEventListener("change",e=>{state.pageSize=Number(e.target.value);state.page=1;render();});
   $("#product-search").addEventListener("input",e=>{state.productQ=e.target.value;state.page=1;renderProductsTab(applyFilters());});
   $("#warning-search").addEventListener("input",e=>{state.warningQ=e.target.value;state.page=1;renderWarningsTab(applyFilters());});
+  $("#warning-sort").addEventListener("change",e=>{state.warningSort=e.target.value;state.page=1;renderWarningsTab(applyFilters());});
   $("#review-search").addEventListener("input",e=>{state.reviewQ=e.target.value;state.page=1;renderReviews(applyFilters());});
   $("#review-export").addEventListener("click",exportReviewCsv);
   $("#defect-search").addEventListener("input",e=>{state.defectQ=e.target.value;renderDefectsTab(applyFilters());});
@@ -1573,7 +1636,7 @@ function toCsv(rows){
     ["سریال","id"],["تاریخ","date"],["ماه","month"],["خودرو","car"],["گروه ساخت","make"],["شرح قطعه","part"],["شرح منشا","origin"],
     ["شماره فنی","tech"],["کد راهکاران","code"],["محصول راهکاران","rahkaran"],["گروه محصول","group"],["خانواده","family"],["محصول","product"],
     ["کد گروه محصول","catalogCode"],["در کاتالوگ","inCatalog"],["در دامنه","inScope"],["روش تطبیق","method"],["اطمینان","confidence"],
-    ["قطعات معیوب","qty"],["نمره منفی","score"],["گرید","grade"],["وضعیت","status"],["نیاز به بازبینی","review"],
+    ["قطعات معیوب","qty"],["نمره منفی","score"],["گرید","grade"],["وضعیت مؤثر","status"],["وضعیت ثبت‌شده","rawStatus"],["خاتمهٔ خودکار","autoClosed"],["اولویت اخطار","priorityLabel"],["نیاز به بازبینی","review"],
     ["وضعیت اقدام کوتاه مدت","stAction"],["وضعیت اقدام میان مدت","mtAction"],
     ["آنالیز علت ایراد","cause"],["شرح اقدام اصلاحی","action"],["منشاء ایراد","origin"],
     ["برنچ","branch"],["ایراد مشتری","defect"],["دسته‌بندی ایراد","defectCat"],["گروه فنی (کمکی)","defectGroup"],["تکرار ایراد در محصول","defectRepeat"],["علت استاندارد","causeStd"],["گروه ۶M","m6"],
@@ -1613,7 +1676,8 @@ function downloadCsv(csv, filename){
 }
 
 function exportCsv(){
-  downloadCsv(toCsv(applyFilters()), "ekhtar-grouped.csv");
+  const rows=applyFilters().slice().sort(state.warningSort==="date"?byNewest:byPriority);
+  downloadCsv(toCsv(rows), "ekhtar-grouped.csv");
 }
 function showCsvFallback(csv,url,filename="ekhtar-grouped.csv"){
   $("#modal-title").textContent="خروجی CSV";
@@ -1631,6 +1695,39 @@ function showCsvFallback(csv,url,filename="ekhtar-grouped.csv"){
     catch(e){ $("#csv-text").select(); document.execCommand("copy"); $("#copy-state").textContent="کپی شد ✓"; }
   });
 }
+async function refreshDashboard(){
+  const btn=$("#refresh-data"); if(!btn) return;
+  if(location.protocol==="file:"){
+    toast("این دکمه در حالت سرور کار می‌کند؛ داشبورد را با «python serve.py» باز کنید");
+    return;
+  }
+  const original=btn.innerHTML;
+  btn.disabled=true;
+  const label=text=>{btn.textContent=text;};
+  label("در حال ساخت گزارش…");
+  try{
+    const response=await fetch("/api/rebuild",{method:"POST",headers:{"Accept":"application/json"}});
+    const started=await response.json().catch(()=>({}));
+    if(!response.ok && response.status!==409) throw new Error(started.error||"شروع ساخت گزارش ناموفق بود");
+    for(let i=0;i<900;i++){
+      await new Promise(resolve=>setTimeout(resolve,1500));
+      const statusResponse=await fetch("/api/rebuild",{cache:"no-store"});
+      const status=await statusResponse.json();
+      if(status.state==="done"){
+        label("بارگذاری نسخهٔ جدید…");
+        location.replace("/?v="+Date.now());
+        return;
+      }
+      if(status.state==="error") throw new Error(status.error||"ساخت گزارش ناموفق بود");
+      label(`در حال ساخت گزارش… ${Math.floor(status.elapsed||0)} ثانیه`);
+    }
+    throw new Error("ساخت گزارش بیش از حد طول کشید");
+  }catch(error){
+    toast((error.message||"خطا در به‌روزرسانی")+" — می‌توانید python build_report.py را دستی اجرا کنید");
+    btn.disabled=false; btn.innerHTML=original;
+  }
+}
+$("#refresh-data").addEventListener("click", refreshDashboard);
 renderMeta();
 initFilters();
 render();

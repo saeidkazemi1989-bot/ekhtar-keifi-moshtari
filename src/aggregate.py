@@ -5,6 +5,7 @@ from __future__ import annotations
 import pandas as pd
 
 from .taxonomy import OUT_GROUP
+from .status import AUTO_COLUMN, P1, P2, P3, PRIORITY_COLUMN, PRIORITY_RANK
 
 WARNING_COUNT = "تعداد اخطار"
 DEFECTIVE = "تعداد قطعات معیوب"
@@ -27,6 +28,10 @@ def kpis(frame: pd.DataFrame) -> dict:
         "score": int(frame[SCORE].fillna(0).sum()),
         "score_maker": int(frame[SCORE_MAKER].fillna(0).sum()),
         "open": int((frame["وضعیت اخطار"] != "خاتمه يافته").sum()),
+        "open_current": int((frame.get(PRIORITY_COLUMN) == P1).sum()) if PRIORITY_COLUMN in frame.columns else 0,
+        "open_recent": int((frame.get(PRIORITY_COLUMN) == P2).sum()) if PRIORITY_COLUMN in frame.columns else 0,
+        "open_undated": int((frame.get(PRIORITY_COLUMN) == P3).sum()) if PRIORITY_COLUMN in frame.columns else 0,
+        "auto_closed": int((frame.get(AUTO_COLUMN) == "بله").sum()) if AUTO_COLUMN in frame.columns else 0,
         "grade_a": int((frame["گرید ایراد"] == "A").sum()),
         "in_scope": in_scope,
         "in_scope_pct": (in_scope / total if total else 0),
@@ -204,6 +209,26 @@ def month_summary(frame: pd.DataFrame) -> pd.DataFrame:
 
 def grade_summary(frame: pd.DataFrame) -> pd.DataFrame:
     return summarize(frame, ["گرید ایراد", "وضعیت اخطار"])
+
+
+def priority_summary(frame: pd.DataFrame) -> pd.DataFrame:
+    """خلاصه بر اساس اولویت اخطار (ترتیب از اولویت ۱ تا ۵)."""
+    if PRIORITY_COLUMN not in frame.columns:
+        return pd.DataFrame()
+    table = summarize(frame, PRIORITY_COLUMN)
+    ranks = frame.groupby(PRIORITY_COLUMN)[PRIORITY_RANK].min().to_dict()
+    table["رتبه"] = table[PRIORITY_COLUMN].map(ranks)
+    table = table.sort_values("رتبه")
+    columns = [
+        "رتبه",
+        PRIORITY_COLUMN,
+        WARNING_COUNT,
+        "سهم اخطار",
+        DEFECTIVE,
+        SCORE,
+        "اخطار باز",
+    ]
+    return table[columns].reset_index(drop=True)
 
 
 def out_of_scope_summary(frame: pd.DataFrame) -> pd.DataFrame:
