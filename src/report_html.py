@@ -533,6 +533,10 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
   </section>
 
   <section class="tab-panel" id="tab-defects">
+    <div class="quality-note" style="margin:0 0 12px">
+      <b>ایراد مشتری</b> متن واقعی ایراد است که از «توضیحات» استخراج می‌شود؛ نمونه: اخطار ۲۳۵۹۱۱ ← «عدم عملکرد نشانگر درب‌ها».
+      <b>دسته‌بندی ایراد</b> جداگانه و فقط <b>عملکردی</b> یا <b>ظاهری</b> است. ستون «گروه فنی» فقط یک لایهٔ کمکی برای گزارش است و جای توصیف ایراد را نمی‌گیرد.
+    </div>
     <div class="kpi-grid" id="defect-kpis" style="grid-template-columns:repeat(4,1fr)"></div>
     <div class="grid-2">
       <div class="card"><h3>پرتکرارترین ایرادهای مشتری <span class="hint">توصیف واقعی استخراج‌شده از «توضیحات»</span></h3><div class="bars" id="defect-bars"></div></div>
@@ -1124,7 +1128,7 @@ function renderDefectsTab(rows){
   let list=items.filter(i=>!q || (i.name+" "+i.group+" "+i.cat).toLowerCase().includes(q));
   $("#defect-count").textContent=`${fmt(list.length)} ردیف · ${fmt(new Set(list.map(i=>i.name)).size)} توصیف یکتا`;
   const total=scoped.length||1;
-  $("#defects-table").innerHTML=`<thead><tr><th>ایراد مشتری (توصیف واقعی)</th><th>دسته‌بندی</th><th>گروه</th><th>اخطار</th><th>سهم</th><th>محصول</th><th>خانواده</th><th>قطعات معیوب</th><th>بیشترین تکرار</th><th>باز</th><th></th></tr></thead>
+  $("#defects-table").innerHTML=`<thead><tr><th>ایراد مشتری (توصیف واقعی)</th><th>دسته‌بندی</th><th>گروه فنی</th><th>اخطار</th><th>سهم</th><th>محصول</th><th>خانواده</th><th>قطعات معیوب</th><th>بیشترین تکرار</th><th>باز</th><th></th></tr></thead>
     <tbody>${list.map(i=>`<tr>
       <td><b>${esc(i.name)}</b></td><td>${defectCatBadge(i.cat)}</td><td class="tiny">${esc(i.group)}</td>
       <td class="num">${fmt(i.warnings)}</td><td class="num muted">${pct(i.warnings/total)}</td>
@@ -1149,7 +1153,7 @@ function renderDefectsTab(rows){
 }
 function exportDefectCsv(){
   const rows=defectRows(applyFilters().filter(r=>state.defectCat==="all"||r.defectCat===state.defectCat));
-  const head=["ایراد مشتری","دسته‌بندی ایراد","گروه ایراد","تعداد اخطار","تعداد محصول","تعداد خانواده","قطعات معیوب","بیشترین تکرار","اخطار باز"];
+  const head=["ایراد مشتری","دسته‌بندی ایراد","گروه فنی (کمکی)","تعداد اخطار","تعداد محصول","تعداد خانواده","قطعات معیوب","بیشترین تکرار","اخطار باز"];
   const body=rows.map(i=>[i.name,i.cat,i.group,i.warnings,i.products,i.families,i.qty,i.maxRepeat,i.open].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(","));
   downloadCsv("\ufeff"+head.join(",")+"\n"+body.join("\n"),"ekhtar-defects.csv");
 }
@@ -1397,7 +1401,7 @@ function openWarning(id){
     <div class="k">وضعیت اقدام</div><div class="v">${esc(stageName(r.status))} · کوتاه‌مدت: ${esc(r.stAction||"—")} · میان‌مدت: ${esc(r.mtAction||"—")}</div>
     <div class="k">شماره فرم 8D</div><div class="v"><b>${esc(r.form8d)}</b> ${r.hasReview?'<span class="badge green">برگه بررسی دارد</span>':'<span class="badge amber">بدون برگه بررسی</span>'}</div>
     <div class="k">برنچ</div><div class="v">${esc(r.branch||"—")} ${r.branchSource?`<span class="muted tiny">(${esc(r.branchSource)})</span>`:""}</div>
-    <div class="k">ایراد مشتری</div><div class="v">${esc(r.defect||"—")} ${defectCatBadge(r.defectCat)} ${r.defectGroup?`<span class="muted tiny">گروه: ${esc(r.defectGroup)}</span>`:""} ${r.defectRepeat>1?`<span class="badge red">${fmt(r.defectRepeat)} بار در این محصول</span>`:""}</div>
+    <div class="k">ایراد مشتری</div><div class="v">${esc(r.defect||"—")} ${defectCatBadge(r.defectCat)} ${r.defectGroup?`<span class="muted tiny">گروه فنی: ${esc(r.defectGroup)}</span>`:""} ${r.defectRepeat>1?`<span class="badge red">${fmt(r.defectRepeat)} بار در این محصول</span>`:""}</div>
     <div class="k">علت استاندارد / ۶M</div><div class="v">${esc(r.causeStd||"—")} ${r.m6&&r.m6!=="نامشخص"?`· <span class="badge violet">${esc(r.m6)}</span>`:""}</div>
     <div class="k">شماره کلیم / کارت نارنجی</div><div class="v">${esc(r.claimNo||"—")} · ${esc(r.orangeCard||"—")}</div>
     <div class="k">تعداد کلیم شماره فنی</div><div class="v">${fmt(r.claims)} (پذیرفته‌شده: ${fmt(r.claimsAccepted)})</div>
@@ -1572,7 +1576,7 @@ function toCsv(rows){
     ["قطعات معیوب","qty"],["نمره منفی","score"],["گرید","grade"],["وضعیت","status"],["نیاز به بازبینی","review"],
     ["وضعیت اقدام کوتاه مدت","stAction"],["وضعیت اقدام میان مدت","mtAction"],
     ["آنالیز علت ایراد","cause"],["شرح اقدام اصلاحی","action"],["منشاء ایراد","origin"],
-    ["برنچ","branch"],["ایراد مشتری","defect"],["دسته‌بندی ایراد","defectCat"],["گروه ایراد","defectGroup"],["تکرار ایراد در محصول","defectRepeat"],["علت استاندارد","causeStd"],["گروه ۶M","m6"],
+    ["برنچ","branch"],["ایراد مشتری","defect"],["دسته‌بندی ایراد","defectCat"],["گروه فنی (کمکی)","defectGroup"],["تکرار ایراد در محصول","defectRepeat"],["علت استاندارد","causeStd"],["گروه ۶M","m6"],
     ["شماره کلیم","claimNo"],["شماره کارت نارنجی","orangeCard"],["شماره فرم 8D","form8d"],["وضعیت فرم 8D","formStatus"],["دارای برگه بررسی","hasReview"]
   ];
   const head=cols.map(c=>c[0]).join(",");

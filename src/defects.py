@@ -316,6 +316,7 @@ def _find_verb(text: str) -> tuple[str, int, int]:
 def _cut_subject(text: str) -> str:
     text = text.strip().lstrip(" :،-.")
     text = re.sub(r"^یک\s+", "", text)
+    text = re.sub(r"^و\s+", "", text)
     # حرف اضافه/قید ابتدای عبارت، بخشی از موضوع ایراد نیست
     changed = True
     while changed and text:
@@ -373,7 +374,8 @@ def _drop_verb_echo(verb: str, subject: str) -> str:
 
 JUNK_TAIL = {
     "عدم", "نادرست", "نمونه", "مورد", "و", "یا", "از", "در", "به", "با", "بر",
-    "که", "را", "هم", "عملکرد", "بودن", "شدن", "کردن",
+    "که", "را", "هم", "عملکرد", "بودن", "شدن", "کردن", "تنها", "می", "شود",
+    "گردد", "گردید", "شد", "بود", "بوده",
 }
 
 
@@ -386,7 +388,7 @@ def polish_statement(text: str) -> str:
         out = re.sub(rf"(?<![A-Za-z]){re.escape(word)}(?![A-Za-z])", word.upper(), out, flags=re.I)
     out = re.sub(r"\s+", " ", out).strip(" :،-.")
     words = out.split()
-    while len(words) > 1 and words[-1] in JUNK_TAIL:
+    while len(words) > 2 and words[-1] in JUNK_TAIL:
         words.pop()
     return " ".join(words)
 
@@ -404,7 +406,7 @@ def _is_junk(text: str) -> bool:
 
 WEAK_STARTS = {
     "عملکرد", "عملکردی", "نادرست", "عدم", "ایراد", "اشکال", "تاخیر", "ناشی",
-    "ا", "یک", "مورد", "نمونه", "حضور", "با", "در", "به", "از", "بر", "که", "و",
+    "ا", "یک", "مورد", "نمونه", "حضور", "قطعه", "با", "در", "به", "از", "بر", "که", "و",
 }
 GENERIC_SUBJECTS = {"قطعه", "خودرو", "محصول", "نامشخص", "سایر", "1", "0"}
 DEFECT_MARKERS = (
@@ -490,6 +492,9 @@ def _extract_statement(text: str, error: object, origin: object) -> str:
             subject = head
         if subject:
             subject = re.sub(r"\s+(?:عملکرد|کار|کارکرد)$", "", subject).strip()
+        # جمله‌های «X دچار عدم عملکرد می‌شود»: آنچه بعد از فعل آمده موضوع ایراد نیست
+        if re.match(r"^(?:می\u200c?شود|می\u200c?گردد|می شود|می گردد|شد|گردید|گردیده)\b", subject):
+            subject = ""
         if subject.startswith(("عدم عملکرد", "عملکرد نادرست", "عدم نمایش", "روشن نشدن", "نشتی", "خرابی")):
             return polish_statement(subject)
         if not subject or _weak_subject(subject):
@@ -561,7 +566,8 @@ def _parenthetical_statement(text: str, error: object, origin: object) -> str:
 
 BARE_STATEMENTS = {
     "نشتی", "عدم عملکرد", "عدم عملکرد کامل", "عدم عملکرد صحیح", "عملکرد نادرست",
-    "عملکرد اشتباه", "خرابی", "شکستگی", "شکست", "ترک", "دفرمگی",
+    "عملکرد اشتباه", "خرابی", "شکستگی", "شکست", "ترک", "دفرمگی", "روشن نشدن",
+    "مغایرت ابعادی", "عدم انطباق", "عدم انطباق ظاهری", "عدم انطباق عملکردی", "نقص",
 }
 
 
