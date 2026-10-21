@@ -1088,8 +1088,10 @@ function defectCatBadge(cat){
 function defectRows(rows){
   const map=new Map();
   rows.forEach(r=>{
-    const key=r.defect||"نامشخص";
-    if(!map.has(key)) map.set(key,{name:key,cat:r.defectCat||"عملکردی",group:r.defectGroup||"نامشخص",warnings:0,qty:0,products:new Set(),families:new Set(),open:0,maxRepeat:0});
+    const name=r.defect||"نامشخص";
+    const cat=r.defectCat||"عملکردی";
+    const key=name+"|"+cat;
+    if(!map.has(key)) map.set(key,{name,cat,group:r.defectGroup||"نامشخص",warnings:0,qty:0,products:new Set(),families:new Set(),open:0,maxRepeat:0});
     const item=map.get(key);
     item.warnings+=1; item.qty+=Number(r.qty||0); item.open+=r.open?1:0;
     item.products.add(r.product); item.families.add(r.family);
@@ -1105,8 +1107,9 @@ function renderDefectsTab(rows){
   const functional=rows.filter(r=>r.defectCat==="عملکردی").length;
   const visual=rows.filter(r=>r.defectCat==="ظاهری").length;
   const empty=rows.length-functional-visual;
+  const unique=new Set(scoped.map(r=>r.defect||"نامشخص")).size;
   const cards=[
-    ["ایراد یکتا",fmt(items.length),`از ${fmt(scoped.length)} اخطار`,""],
+    ["ایراد یکتا",fmt(unique),`از ${fmt(scoped.length)} اخطار · ${fmt(items.length)} ردیف`,""],
     ["عملکردی",fmt(functional),"ایراد در کارکرد قطعه","amber"],
     ["ظاهری",fmt(visual),"ایراد در ظاهر/شکل قطعه","violet"],
     ["پرتکرارترین ایراد",top?esc(top.name):"—",top?`${fmt(top.warnings)} اخطار · ${esc(top.cat)}`:"","rose"]
@@ -1119,7 +1122,7 @@ function renderDefectsTab(rows){
 
   const q=state.defectQ.trim().toLowerCase();
   let list=items.filter(i=>!q || (i.name+" "+i.group+" "+i.cat).toLowerCase().includes(q));
-  $("#defect-count").textContent=`${fmt(list.length)} ایراد`;
+  $("#defect-count").textContent=`${fmt(list.length)} ردیف · ${fmt(new Set(list.map(i=>i.name)).size)} توصیف یکتا`;
   const total=scoped.length||1;
   $("#defects-table").innerHTML=`<thead><tr><th>ایراد مشتری (توصیف واقعی)</th><th>دسته‌بندی</th><th>گروه</th><th>اخطار</th><th>سهم</th><th>محصول</th><th>خانواده</th><th>قطعات معیوب</th><th>بیشترین تکرار</th><th>باز</th><th></th></tr></thead>
     <tbody>${list.map(i=>`<tr>
