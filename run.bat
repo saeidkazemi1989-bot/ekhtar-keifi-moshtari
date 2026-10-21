@@ -25,17 +25,24 @@ if not exist ".venv\Scripts\python.exe" (
     pause
     exit /b 1
   )
-  echo [2/3] Installing required packages ...
+) else (
+  echo [1/3] Virtual environment found.
+)
+
+echo [2/3] Checking required packages ...
+".venv\Scripts\python.exe" -c "import pandas, openpyxl, rapidfuzz, jdatetime, docx" >nul 2>nul
+if errorlevel 1 (
+  echo       Installing missing packages ...
   ".venv\Scripts\python.exe" -m pip install --upgrade pip >nul
   ".venv\Scripts\python.exe" -m pip install -r requirements.txt
   if errorlevel 1 (
     echo [ERROR] Package installation failed.
+    echo         Check your internet connection and try again.
     pause
     exit /b 1
   )
 ) else (
-  echo [1/3] Virtual environment found.
-  echo [2/3] Packages already installed.
+  echo       All packages are installed.
 )
 
 echo [3/3] Building the report ...

@@ -38,6 +38,11 @@ REQUIRED_MODULES = {
     "jdatetime": "jdatetime",
 }
 
+# کتابخانه‌های اختیاری: نبودشان ساخت گزارش را متوقف نمی‌کند
+OPTIONAL_MODULES = {
+    "docx": "python-docx",
+}
+
 
 # --------------------------------------------------------------------- گزارش‌گیری
 def _setup_console() -> None:
@@ -66,9 +71,9 @@ def fail(message: str) -> None:
 
 
 # --------------------------------------------------------------------- بررسی‌ها
-def check_dependencies() -> list[str]:
+def check_dependencies(modules: dict[str, str] | None = None) -> list[str]:
     missing = []
-    for module, package in REQUIRED_MODULES.items():
+    for module, package in (modules or REQUIRED_MODULES).items():
         try:
             __import__(module)
         except Exception:
@@ -109,6 +114,13 @@ def run_check() -> int:
         problems += 1
     else:
         log("  [OK] همهٔ کتابخانه‌های لازم نصب هستند.")
+    optional_missing = check_dependencies(OPTIONAL_MODULES)
+    if optional_missing:
+        log("  [هشدار] این کتابخانه اختیاری نصب نیست: " + ", ".join(optional_missing))
+        log("          بدون آن، فرم‌های 8D ساخته نمی‌شوند (بقیهٔ گزارش ساخته می‌شود).")
+        log("          نصب:  pip install -r requirements.txt")
+    else:
+        log("  [OK] کتابخانهٔ فرم 8D (python-docx) نصب است.")
     absent = check_inputs()
     if absent:
         log("  [خطا] این فایل‌های ورودی در پوشهٔ پروژه نیستند:")
@@ -140,6 +152,13 @@ def main() -> int:
         log("دستور نصب:  pip install -r requirements.txt")
         return 3
 
+    optional_missing = check_dependencies(OPTIONAL_MODULES)
+    if optional_missing:
+        log("  [هشدار] این کتابخانه اختیاری نصب نیست: " + ", ".join(optional_missing))
+        log("          بدون آن، فرم‌های 8D ساخته نمی‌شوند (بقیهٔ گزارش ساخته می‌شود).")
+        log("          نصب:  pip install -r requirements.txt")
+    else:
+        log("  [OK] کتابخانهٔ فرم 8D (python-docx) نصب است.")
     absent = check_inputs()
     if absent:
         fail("فایل‌های ورودی زیر پیدا نشدند: " + "، ".join(p.name for p in absent))
@@ -210,31 +229,43 @@ def main() -> int:
 
     log("۳) ساخت فرم‌های 8D…")
     eight_d = pd.DataFrame()
-    if EIGHT_D_TEMPLATE.exists():
+    forms_written = False
+    if not EIGHT_D_TEMPLATE.exists():
+        log("   قالب فرم 8D پیدا نشد؛ فرم‌ها ساخته نشدند.")
+    else:
         form_rows = eight_d_rows(enriched)
+        eight_d = form_rows
+        forms = dict(zip(form_rows["سریال اخطار"], form_rows["شماره فرم 8D"]))
+        enriched["شماره فرم 8D"] = [
+            forms.get(serial, "") for serial in enriched["سریال اخطار"]
+        ]
         serial_arg = _option_value("--8d-serial")
         if serial_arg:
             match = form_rows[form_rows["سریال اخطار"].astype(str) == str(serial_arg)]
             if match.empty:
                 fail(f"اخطاری با سریال {serial_arg} پیدا نشد.")
                 return 4
-            row = match.iloc[0]
-            official = build_official_form(
-                row,
-                EIGHT_D_TEMPLATE,
-                OUTPUT_DIR / "فرم 8D رسمی" / f"8D-{serial_arg}.docx",
-            )
+            try:
+                official = build_official_form(
+                    match.iloc[0],
+                    EIGHT_D_TEMPLATE,
+                    OUTPUT_DIR / "فرم 8D رسمی" / f"8D-{serial_arg}.docx",
+                )
+            except Exception as error:
+                fail(f"ساخت فرم رسمی 8D ناموفق بود: {error}")
+                log("دستور نصب:  pip install -r requirements.txt")
+                return 5
             log(f"   فرم رسمی QA-DA-02-C: {official.relative_to(ROOT)}")
             return 0
-        build_8d_document(form_rows, EIGHT_D_TEMPLATE, forms_path)
-        eight_d = form_rows
-        forms = dict(zip(form_rows["سریال اخطار"], form_rows["شماره فرم 8D"]))
-        enriched["شماره فرم 8D"] = [
-            forms.get(serial, "") for serial in enriched["سریال اخطار"]
-        ]
-        log(f"   {len(form_rows):,} فرم 8D ساخته شد: {forms_path.name}")
-    else:
-        log("   قالب فرم 8D پیدا نشد؛ فرم‌ها ساخته نشدند.")
+        try:
+            path, count = build_8d_document(form_rows, EIGHT_D_TEMPLATE, forms_path)
+            forms_written = True
+            log(f"   {count:,} فرم 8D ساخته شد: {path.name}")
+        except Exception as error:
+            log(f"   [هشدار] فایل ورد فرم‌های 8D ساخته نشد: {error}")
+            log("           بقیهٔ گزارش ساخته می‌شود. برای ساخت فرم‌ها اجرا کنید:")
+            log("           pip install -r requirements.txt")
+            log(f"   فهرست {len(form_rows):,} فرم در شیت «فرم 8D» گزارش اکسل هست.")
 
     log("۴) ساخت گزارش اکسل…")
     build_excel(
@@ -268,7 +299,9 @@ def main() -> int:
     log("")
     log("فایل‌های ساخته‌شده:")
     for path in (excel_path, html_path, data_path, forms_path):
-        if path.exists():
+        if path == forms_path and not forms_written:
+            log(f"  {path.name}  (ساخته نشد — python-docx نصب نیست)")
+        elif path.exists():
             log(f"  {path.name}  ({path.stat().st_size / 1024:,.0f} کیلوبایت)")
     log("")
     log(f"پایان در {time.time() - started:.1f} ثانیه. پوشهٔ خروجی: {OUTPUT_DIR}")

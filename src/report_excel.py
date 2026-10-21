@@ -463,7 +463,7 @@ def build_excel(
     if "دارای برگه بررسی" in enriched.columns and (enriched["دارای برگه بررسی"] == "بله").any():
         reviewed = enriched[enriched["دارای برگه بررسی"] == "بله"].copy()
         reviewed["شماره فرم 8D"] = [
-            f"8D-{int(y) if pd.notna(y) else '----'}-{int(s)}"
+            f"8D-{int(y) if pd.notna(y) else 'XXXX'}-{int(s)}"
             for s, y in zip(reviewed["سریال اخطار"], reviewed["سال"])
         ]
         reviewed = reviewed.sort_values(["سال", "سریال اخطار"])
@@ -497,7 +497,7 @@ def build_excel(
     if eight_d is not None and not eight_d.empty:
         form_table = eight_d.copy()
         form_table["شماره فرم 8D"] = [
-            f"8D-{int(y) if pd.notna(y) else '----'}-{int(s)}"
+            f"8D-{int(y) if pd.notna(y) else 'XXXX'}-{int(s)}"
             for s, y in zip(form_table["سریال اخطار"], form_table["سال"])
         ]
         form_table["وضعیت فرم"] = [
@@ -530,6 +530,7 @@ def build_excel(
         )
     else:
         ws.cell(row=row, column=1, value="فرم 8D ساخته نشده است.")
+        ws.cell(row=row + 1, column=1, value="برای ساخت فرم‌ها کتابخانهٔ python-docx را نصب کنید:  pip install -r requirements.txt")
 
     # ---------------------------------------------------------------- روند سالانه و ماهانه
     ws = wb.create_sheet("روند زمانی")
