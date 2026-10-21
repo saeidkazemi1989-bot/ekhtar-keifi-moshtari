@@ -47,7 +47,12 @@ def _jalali_now() -> str:
     return stamp.translate(FA_DIGITS)
 
 
-def _payload(enriched: pd.DataFrame, source_names: dict[str, str]) -> dict:
+def _payload(
+    enriched: pd.DataFrame,
+    source_names: dict[str, str],
+    checks: pd.DataFrame | None = None,
+    unmatched: pd.DataFrame | None = None,
+) -> dict:
     records: list[dict] = []
     for _, row in enriched.iterrows():
         year = row.get("سال")
@@ -85,6 +90,22 @@ def _payload(enriched: pd.DataFrame, source_names: dict[str, str]) -> dict:
                 "grade": _clean_text(row["گرید ایراد"]),
                 "status": _clean_text(row["وضعیت اخطار"]),
                 "open": row["وضعیت اخطار"] != "خاتمه يافته",
+                "stAction": _clean_text(row["وضعیت اقدام کوتاه مدت"]),
+                "mtAction": _clean_text(row["وضعیت اقدام میان مدت"]),
+                "cause": _clean_text(row.get("آنالیز علت ایراد", "")),
+                "action": _clean_text(row.get("شرح اقدام اصلاحی", "")),
+                "origin": _clean_text(row.get("منشاء ایراد", "")),
+                "claimNo": _clean_text(row.get("شماره کلیم", "")),
+                "orangeCard": _clean_text(row.get("شماره کارت نارنجی", "")),
+                "reviewCategory": _clean_text(row.get("دسته محصول (بررسی)", "")),
+                "claims": int(row.get("تعداد کلیم") or 0) if pd.notna(row.get("تعداد کلیم")) else 0,
+                "claimsAccepted": int(row.get("تعداد کلیم پذیرفته‌شده") or 0) if pd.notna(row.get("تعداد کلیم پذیرفته‌شده")) else 0,
+                "hasReview": row.get("دارای برگه بررسی") == "بله",
+                "form8d": (
+                    f"8D-{int(year) if pd.notna(year) else 'XXXX'}-{int(row['سریال اخطار'])}"
+                    if row["دارای برگه بررسی"] == "بله" or row["وضعیت اخطار"] != "خاتمه يافته"
+                    else "—"
+                ),
                 "type": _clean_text(row["نوع ایراد"]),
                 "location": _clean_text(row["محل صدور"]),
                 "maker": _clean_text(row["نام سازنده"]),
@@ -105,6 +126,12 @@ def _payload(enriched: pd.DataFrame, source_names: dict[str, str]) -> dict:
     out_categories = out_of_scope_summary(enriched)
 
     values = kpis(enriched)
+    values["reviewed"] = int((enriched["دارای برگه بررسی"] == "بله").sum()) if "دارای برگه بررسی" in enriched.columns else 0
+    values["reviewed_pct"] = values["reviewed"] / len(enriched) if len(enriched) else 0
+    values["staged"] = int((enriched["وضعیت اخطار"] == "اقدام كوتاه مدت").sum())
+    values["medium"] = int((enriched["وضعیت اخطار"] == "اقدام ميان مدت").sum())
+    values["closed"] = int((enriched["وضعیت اخطار"] == "خاتمه يافته").sum())
+    values["claims"] = int(pd.to_numeric(enriched.get("تعداد کلیم"), errors="coerce").fillna(0).sum()) if "تعداد کلیم" in enriched.columns else 0
     return {
         "meta": {
             "title": "داشبورد دسته‌بندی اخطارهای کیفی",
@@ -121,6 +148,12 @@ def _payload(enriched: pd.DataFrame, source_names: dict[str, str]) -> dict:
         "vehicles": vehicles.to_dict(orient="records"),
         "outCategories": out_categories.to_dict(orient="records") if not out_categories.empty else [],
         "warnings": records,
+        "groupingChecks": checks.to_dict(orient="records") if checks is not None and not checks.empty else [],
+        "unmatchedReview": (
+            unmatched.to_dict(orient="records")
+            if unmatched is not None and not unmatched.empty
+            else []
+        ),
     }
 
 
@@ -129,6 +162,8 @@ def build_html(
     output_path: str | Path,
     source_names: dict[str, str] | None = None,
     data_file: str | Path | None = None,
+    checks: pd.DataFrame | None = None,
+    unmatched: pd.DataFrame | None = None,
 ) -> Path:
     """ساخت داشبورد.
 
@@ -139,7 +174,7 @@ def build_html(
     source_names = source_names or {}
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    data = _payload(enriched, source_names)
+    data = _payload(enriched, source_names, checks, unmatched)
     payload = json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
 
     if data_file is None:
@@ -338,6 +373,7 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
   <button class="tab" data-tab="families">خانواده‌ها</button>
   <button class="tab" data-tab="products">محصولات</button>
   <button class="tab" data-tab="warnings">فهرست اخطارها</button>
+  <button class="tab" data-tab="reviews">بررسی اخطارها</button>
   <button class="tab" data-tab="quality">کیفیت تطبیق</button>
 </nav>
 <div class="filters">
@@ -346,11 +382,13 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
   <div class="field"><label>محصول</label><select id="f-product"></select></div>
   <div class="field"><label>گروه خودرو</label><select id="f-car"></select></div>
   <div class="field"><label>گرید ایراد</label><select id="f-grade"></select></div>
+  <div class="field"><label>سال</label><select id="f-year"></select></div>
   <div class="field"><label>از ماه</label><select id="f-from"></select></div>
   <div class="field"><label>تا ماه</label><select id="f-to"></select></div>
   <div class="field" style="grid-column:span 3"><label>جستجو (شرح قطعه، شماره فنی، محصول، سریال)</label><input id="f-q" placeholder="مثلاً NBCM یا جلوآمپر یا IK01750880"></div>
   <div class="field" style="grid-column:span 2"><label>وضعیت اخطار</label><select id="f-status"></select></div>
-  <div class="filter-actions">
+  <div class="field"><label>برگه بررسی</label><select id="f-review"></select></div>
+  <div class="filter-actions" style="grid-column:span 4">
     <button class="btn" id="reset">پاک‌کردن</button>
     <button class="btn primary" id="export">خروجی CSV</button>
     <button class="btn" id="print">چاپ</button>
@@ -364,6 +402,11 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
       <div class="card"><h3 style="justify-content:space-between">روند اخطارها <span class="hint" id="trend-hint">سال شمسی</span></h3>
         <div class="seg" id="trend-toggle"><button data-mode="year" class="active">سالانه</button><button data-mode="month">ماهانه</button></div>
         <div class="trend-wrap" id="trend"></div></div>
+    </div>
+    <div class="grid-3">
+      <div class="card"><h3>وضعیت اخطار <span class="hint">خاتمه‌یافته / باز</span></h3><div id="status-donut"></div></div>
+      <div class="card"><h3>اقدام کوتاه مدت <span class="hint" id="st-count"></span></h3><div class="bars" id="st-bars"></div></div>
+      <div class="card"><h3>اقدام میان مدت <span class="hint" id="mt-count"></span></h3><div class="bars" id="mt-bars"></div></div>
     </div>
     <div class="grid-2">
       <div class="card"><h3>پرتکرارترین خانواده‌ها <span class="hint">۱۲ خانواده اول</span></h3><div class="bars" id="family-bars"></div></div>
@@ -416,6 +459,29 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
     </div>
   </section>
 
+  <section class="tab-panel" id="tab-reviews">
+    <div class="kpi-grid" id="review-kpis" style="grid-template-columns:repeat(4,1fr)"></div>
+    <div class="grid-2">
+      <div class="card"><h3>منشا ایراد <span class="hint">بر اساس برگه‌های بررسی</span></h3><div class="bars" id="origin-bars"></div></div>
+      <div class="card"><h3>دسته محصول اعلامی مشتری <span class="hint">مقایسه با گروه‌بندی داخلی</span></h3><div class="bars" id="category-bars"></div></div>
+    </div>
+    <div class="card">
+      <div class="toolbar">
+        <h3 style="margin:0">برگه‌های بررسی اخطار <span class="hint" id="review-count"></span></h3>
+        <div class="right">
+          <div class="search-mini"><input id="review-search" placeholder="جستجو در علت ایراد/اقدام/شماره اخطار"></div>
+          <button class="btn" id="review-export">خروجی CSV بررسی‌ها</button>
+        </div>
+      </div>
+      <div class="table-wrap"><table id="reviews-table"></table></div>
+      <div class="pager" id="reviews-pager"></div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h3>راهنمای فرم 8D</h3>
+      <div class="quality-note">برای هر اخطار بررسی‌شده و هر اخطار باز، یک فرم 8D با شماره <b>8D-سال-سریال</b> ساخته شده است. فایل ورد همهٔ فرم‌ها با عنوان «فرم 8D اخطارها.docx» در پوشهٔ خروجی است و ردیف‌های آماده (دارای علت و اقدام) در شیت «فرم 8D» گزارش اکسل فهرست شده‌اند. در جزئیات هر اخطار، شماره فرم و متن علت/اقدام نمایش داده می‌شود.</div>
+    </div>
+  </section>
+
   <section class="tab-panel" id="tab-quality">
     <div class="kpi-grid" id="quality-kpis" style="grid-template-columns:repeat(4,1fr)"></div>
     <div class="grid-2">
@@ -423,6 +489,14 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
       <div class="card"><h3>دسته‌های خارج از دامنه</h3><div class="bars" id="out-bars"></div></div>
     </div>
     <div class="card"><h3>موارد نیازمند بازبینی <span class="hint">حداکثر ۲۰۰ ردیف</span></h3><div class="table-wrap"><table id="review-table"></table></div></div>
+    <div class="card" style="margin-top:14px">
+      <h3>کنترل گروه‌بندی <span class="hint">ردیف‌هایی که دستهٔ اعلامی مشتری با گروه‌بندی داخلی هم‌خوان نیست</span></h3>
+      <div class="table-wrap"><table id="checks-table"></table></div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h3>برگه‌های بررسی بدون اخطار متناظر <span class="hint">سریال‌هایی که در فایل اخطارها نیستند</span></h3>
+      <div class="table-wrap"><table id="unmatched-table"></table></div>
+    </div>
     <div class="card" style="margin-top:14px"><h3>راهنمای تفسیر</h3>
       <div class="quality-note">
         «در دامنه» یعنی گروه محصول یکی از گروه‌های فایل گروه‌بندی است. «در فایل گروه‌بندی» یعنی خود محصول/خانواده در فایل پیدا شده است. اختلاف این دو، شکاف کاتالوگ را نشان می‌دهد: محصولاتی که گروه آن‌ها مشخص است ولی هنوز در فایل گروه‌بندی تعریف نشده‌اند. ستون «نیاز به بازبینی» برای تطبیق‌های کم‌اطمینان یا مبتنی بر نام است.
@@ -480,14 +554,15 @@ const confBadge = c => {
 const reviewBadge = r => r.review ? '<span class="badge red">بازبینی</span>' : "";
 const catalogBadge = r => r.inCatalog ? '<span class="badge green">کاتالوگ</span>' : (r.inScope ? '<span class="badge slate">سایر</span>' : '<span class="badge slate">خارج</span>');
 
-const state = {group:"",family:"",product:"",car:"",grade:"",status:"",from:"",to:"",q:"",tab:"overview",
-  productQ:"",warningQ:"",page:1,pageSize:25,productSort:{key:"warnings",dir:-1},trendMode:"year"};
+const state = {group:"",family:"",product:"",car:"",grade:"",status:"",year:"",from:"",to:"",q:"",tab:"overview",
+  review:"",productQ:"",warningQ:"",reviewQ:"",page:1,pageSize:25,productSort:{key:"warnings",dir:-1},trendMode:"year"};
 let currentProducts = [];
 let currentWarnings = [];
+let currentReviews = [];
 
 function monthKey(r){ return r.monthKey || 0; }
 function haystack(r){
-  return [r.part,r.origin,r.tech,r.code,r.rahkaran,r.product,r.family,r.group,r.car,r.id,r.error].join(" ").toLowerCase();
+  return [r.part,r.origin,r.tech,r.code,r.rahkaran,r.product,r.family,r.group,r.car,r.id,r.error,r.cause,r.action].join(" ").toLowerCase();
 }
 function applyFilters(){
   const q = state.q.trim().toLowerCase();
@@ -499,11 +574,23 @@ function applyFilters(){
     if(state.grade && r.grade!==state.grade) return false;
     if(state.status==="open" && !r.open) return false;
     if(state.status==="closed" && r.open) return false;
+    if(state.review==="yes" && !r.hasReview) return false;
+    if(state.review==="no" && r.hasReview) return false;
+    if(state.year && String(r.year)!==state.year) return false;
     if(state.from && monthKey(r) && monthKey(r)<Number(state.from)) return false;
     if(state.to && monthKey(r) && monthKey(r)>Number(state.to)) return false;
     if(q && !haystack(r).includes(q)) return false;
     return true;
   });
+}
+function monthsOfYear(year){
+  const set = new Map();
+  DATA.warnings.forEach(r=>{
+    if(!r.monthKey) return;
+    if(year && String(r.year)!==String(year)) return;
+    if(!set.has(r.monthKey)) set.set(r.monthKey, r.month);
+  });
+  return Array.from(set.entries()).sort((a,b)=>a[0]-b[0]).map(([key,label])=>({key:String(key),label}));
 }
 function sum(rows,key){ return rows.reduce((a,r)=>a+Number(r[key]||0),0); }
 function uniq(rows,key){ return new Set(rows.map(r=>r[key]).filter(Boolean)).size; }
@@ -533,13 +620,14 @@ function renderKpis(rows){
   const total=rows.length, qty=sum(rows,"qty"), score=sum(rows,"score"), open=rows.filter(r=>r.open).length;
   const inScope=rows.filter(r=>r.inScope).length, inCatalog=rows.filter(r=>r.inCatalog).length;
   const products=uniq(rows,"product"), review=rows.filter(r=>r.review).length;
+  const reviewed=rows.filter(r=>r.hasReview).length;
   const cards=[
     ["اخطارهای کیفی",fmt(total),"ردیف انتخاب‌شده",""],
     ["قطعات معیوب",fmt(qty),"جمع تعداد قطعات","blue"],
     ["نمره منفی مرجع",fmt(score),"مجموع امتیاز","violet"],
     ["محصولات درگیر",fmt(products),"محصول متمایز","amber"],
     ["پوشش گروه‌بندی",pct(total?inScope/total:0),`${fmt(inScope)} ردیف در دامنه`,"rose"],
-    ["اخطارهای باز",fmt(open),`${fmt(review)} ردیف نیازمند بازبینی`,"slate"]
+    ["اخطارهای باز",fmt(open),`${fmt(reviewed)} برگه بررسی (${pct(total?reviewed/total:0)})`,"slate"]
   ];
   $("#kpis").innerHTML=cards.map(([l,v,s,c])=>`<div class="kpi ${c}"><div class="label">${l}</div><div class="value">${v}</div><div class="sub">${s}</div></div>`).join("");
 }
@@ -588,14 +676,24 @@ function renderDonut(el,rows){
 
 function renderTrend(el,rows){
   const mode=state.trendMode;
-  const buckets = mode==="year" ? (DATA.years||[]).map(y=>String(y["سال"])) : (DATA.months||[]).map(m=>String(m["کلید ماه"]));
-  if(!buckets.length){ empty(el); return; }
+  // فقط بازهٔ انتخاب‌شده (یا بازهٔ داده) رسم می‌شود؛ ماه‌های بدون اخطار در دو سر بازه حذف می‌شوند
   const counts=new Map();
+  const monthLabels=new Map();
   rows.forEach(r=>{
     const k = mode==="year" ? String(r.year||"") : String(r.monthKey||"");
-    if(k && k!=="0") counts.set(k,(counts.get(k)||0)+1);
+    if(!k || k==="0") return;
+    counts.set(k,(counts.get(k)||0)+1);
+    if(mode!=="year") monthLabels.set(k,r.month||"");
   });
-  const data=buckets.map(b=>({label:b,value:counts.get(b)||0}));
+  let keys = Array.from(counts.keys()).sort();
+  if(!keys.length){ empty(el,"در بازهٔ انتخاب‌شده اخطاری وجود ندارد"); return; }
+  // پر کردن ماه‌های خالی بین دو سر بازه تا نمودار پیوسته باشد
+  if(mode==="month"){
+    const allKeys = Array.from(new Set(DATA.warnings.map(r=>r.monthKey).filter(Boolean))).sort((a,b)=>a-b);
+    const first = Number(keys[0]), last = Number(keys[keys.length-1]);
+    keys = allKeys.filter(k=>Number(k)>=first && Number(k)<=last).map(String);
+  }
+  const data=keys.map(k=>({key:k,label: mode==="year" ? k : (monthLabels.get(k) || monthLabel(k)), value:counts.get(k)||0}));
   const max=Math.max(1,...data.map(d=>d.value));
   const W=820,H=270,pad={l:40,r:14,t:16,b:38};
   const iw=W-pad.l-pad.r, ih=H-pad.t-pad.b;
@@ -618,6 +716,14 @@ function renderTrend(el,rows){
   el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img"><defs><linearGradient id="grad" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#14b8a6" stop-opacity=".35"/><stop offset="1" stop-color="#14b8a6" stop-opacity="0"/></linearGradient></defs>${grid}<polygon points="${area}" fill="url(#grad)"/><polyline points="${pts}" fill="none" stroke="#0f766e" stroke-width="2.5"/>${dots}${labels}</svg>`;
 }
 
+function monthLabel(key){
+  const m = DATA.warnings.find(r=>String(r.monthKey)===String(key));
+  if(m) return m.month;
+  const k = Number(key); const month = k%100; const year = Math.floor(k/100);
+  const names = ["فروردین","اردیبهشت","خرداد","تیر","مرداد","شهریور","مهر","آبان","آذر","دی","بهمن","اسفند"];
+  return `${names[month-1]||""} ${year}`;
+}
+
 function renderBars(el,items,valueKey="warnings",colorFn=null,labelFn=null){
   if(!items.length){ empty(el); return; }
   const max=Math.max(1,...items.map(i=>i[valueKey]||0));
@@ -627,6 +733,97 @@ function renderBars(el,items,valueKey="warnings",colorFn=null,labelFn=null){
     const label=labelFn?labelFn(item):item.name;
     return `<div class="bar-row"><div class="label" title="${esc(label)}">${esc(label)}</div><div class="track"><div class="fill" style="width:${p}%;background:${col}"></div></div><div class="val">${fmt(item[valueKey]||0)}</div></div>`;
   }).join("");
+}
+
+const STAGE_COLORS = {
+  "خاتمه يافته":"#0f766e",
+  "اقدام ميان مدت":"#d97706",
+  "اقدام كوتاه مدت":"#e11d48",
+  "تنظيم":"#7c3aed"
+};
+function stageName(s){ return s==="خاتمه يافته" ? "خاتمه‌یافته" : s || "نامشخص"; }
+
+function renderStatusDonut(el, rows){
+  if(!rows.length){ empty(el); return; }
+  const counts = {};
+  rows.forEach(r=>{ const k=r.status||"نامشخص"; counts[k]=(counts[k]||0)+1; });
+  const closed = rows.filter(r=>!r.open).length;
+  const open = rows.length - closed;
+  const total = rows.length || 1;
+  const size=190, r0=68, c=95, stroke=22, circ=2*Math.PI*r0;
+  const closedLen = circ*(closed/total);
+  const arcs = `<circle cx="${c}" cy="${c}" r="${r0}" fill="none" stroke="#0f766e" stroke-width="${stroke}" stroke-dasharray="${closedLen} ${circ-closedLen}" stroke-dashoffset="0" transform="rotate(-90 ${c} ${c})"><title>خاتمه‌یافته: ${fmt(closed)}</title></circle>
+    <circle cx="${c}" cy="${c}" r="${r0}" fill="none" stroke="#e11d48" stroke-width="${stroke}" stroke-dasharray="${circ-closedLen} ${circ-(circ-closedLen)}" stroke-dashoffset="${-closedLen}" transform="rotate(-90 ${c} ${c})"><title>باز: ${fmt(open)}</title></circle>`;
+  const order = ["خاتمه يافته","اقدام ميان مدت","اقدام كوتاه مدت","تنظيم"];
+  const legend = order.filter(k=>counts[k]).map(k=>`<div class="legend-item" data-stage="${esc(k)}">
+      <span class="dot" style="background:${STAGE_COLORS[k]||"#94a3b8"}"></span>
+      <span class="name">${esc(stageName(k))}</span><span class="num">${fmt(counts[k])} · ${pct(counts[k]/total)}</span></div>`).join("");
+  el.innerHTML=`<div class="donut-wrap"><svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    <circle cx="${c}" cy="${c}" r="${r0}" fill="none" stroke="#eef2f7" stroke-width="${stroke}"></circle>${arcs}
+    <text x="${c}" y="${c-4}" text-anchor="middle" font-size="20" font-weight="800" fill="#0f172a">${fmt(open)}</text>
+    <text x="${c}" y="${c+14}" text-anchor="middle" font-size="10" fill="#64748b">اخطار باز</text>
+  </svg><div class="donut-legend">${legend}</div></div>`;
+}
+
+function renderActionBars(rows){
+  const st = state.stActionCounts || {};
+  const stItems = groupAgg(rows,"stAction").sort((a,b)=>b.warnings-a.warnings);
+  const mtItems = groupAgg(rows,"mtAction").sort((a,b)=>b.warnings-a.warnings);
+  $("#st-count").textContent = `${fmt(rows.filter(r=>r.status==="اقدام كوتاه مدت").length)} اخطار در این مرحله`;
+  $("#mt-count").textContent = `${fmt(rows.filter(r=>r.status==="اقدام ميان مدت").length)} اخطار در این مرحله`;
+  renderBars($("#st-bars"), stItems.slice(0,6), "warnings", i=>i.name==="تاييد مشتري" ? "#0f766e" : "#e11d48");
+  renderBars($("#mt-bars"), mtItems.slice(0,6), "warnings", i=>i.name==="تاييد مشتري" ? "#0f766e" : (i.name==="غيرضروري" ? "#94a3b8" : "#d97706"));
+}
+
+function renderReviewKpis(rows){
+  const reviewed = rows.filter(r=>r.hasReview);
+  const ready = reviewed.filter(r=>r.cause).length;
+  const withAction = reviewed.filter(r=>r.action).length;
+  const cards=[
+    ["برگه بررسی", fmt(reviewed.length), `از ${fmt(rows.length)} اخطار`, ""],
+    ["پوشش بررسی", pct(rows.length?reviewed.length/rows.length:0), "درصد اخطارهای بررسی‌شده", "blue"],
+    ["دارای آنالیز علت", fmt(ready), "برگهٔ آمادهٔ تأیید", "amber"],
+    ["دارای اقدام اصلاحی", fmt(withAction), "برگه با اقدام ثبت‌شده", "violet"]
+  ];
+  $("#review-kpis").innerHTML=cards.map(([l,v,s,c])=>`<div class="kpi ${c}"><div class="label">${l}</div><div class="value">${v}</div><div class="sub">${s}</div></div>`).join("");
+}
+
+function reviewRows(rows){
+  const q = state.reviewQ.trim().toLowerCase();
+  let items = rows.filter(r=>r.hasReview);
+  if(q) items = items.filter(r=>[r.id,r.part,r.cause,r.action,r.origin,r.product,r.claimNo].join(" ").toLowerCase().includes(q));
+  return items;
+}
+
+function renderReviews(rows){
+  renderReviewKpis(rows);
+  const reviewed = rows.filter(r=>r.hasReview);
+  const origins = groupAgg(reviewed,"origin").sort((a,b)=>b.warnings-a.warnings);
+  renderBars($("#origin-bars"), origins.slice(0,10), "warnings", ()=>"#7c3aed", i=>i.name||"ثبت نشده");
+  const cats = groupAgg(reviewed,"reviewCategory").sort((a,b)=>b.warnings-a.warnings);
+  renderBars($("#category-bars"), cats.slice(0,10), "warnings", ()=>"#0891b2", i=>i.name||"ثبت نشده");
+
+  const items = reviewRows(rows);
+  currentReviews = items;
+  $("#review-count").textContent = `${fmt(items.length)} برگه`;
+  const pages = Math.max(1, Math.ceil(items.length/state.pageSize));
+  if(state.page>pages) state.page=pages;
+  const start=(state.page-1)*state.pageSize;
+  const page = items.slice(start, start+state.pageSize);
+  $("#reviews-table").innerHTML=`<thead><tr>
+    <th>سریال</th><th>تاریخ</th><th>خودرو</th><th>شرح قطعه</th><th>محصول</th><th>آنالیز علت ایراد</th><th>اقدام اصلاحی</th><th>منشاء</th><th>کلیم</th><th>فرم 8D</th><th>وضعیت</th></tr></thead>
+    <tbody>${page.map(r=>`<tr class="clickable" data-id="${r.id}">
+      <td class="num">${esc(r.id)}</td><td class="tiny">${esc(faDigits(r.date))}</td><td class="tiny">${esc(r.car)}</td>
+      <td class="tiny" title="${esc(r.part)}">${esc(r.part.length>40?r.part.slice(0,40)+"…":r.part)}</td>
+      <td class="tiny">${esc(r.product)}</td>
+      <td class="tiny" title="${esc(r.cause)}">${esc(r.cause? (r.cause.length>44?r.cause.slice(0,44)+"…":r.cause) : "—")}</td>
+      <td class="tiny" title="${esc(r.action)}">${esc(r.action? (r.action.length>34?r.action.slice(0,34)+"…":r.action) : "—")}</td>
+      <td class="tiny">${esc(r.origin||"—")}</td>
+      <td class="num tiny">${esc(r.claimNo||"—")}</td>
+      <td class="tiny">${esc(r.form8d)}</td>
+      <td>${statusBadge(r)}</td></tr>`).join("")}</tbody>`;
+  $$("#reviews-table tbody tr").forEach(tr=>tr.addEventListener("click",()=>openWarning(Number(tr.dataset.id))));
+  renderPager($("#reviews-pager"),items.length,state.page,state.pageSize,p=>{state.page=p;renderReviews(applyFilters());});
 }
 
 function renderGroupTable(rows){
@@ -732,7 +929,29 @@ function renderWarningsTab(rows){
   $$("#warnings-table tbody tr").forEach(tr=>tr.addEventListener("click",()=>openWarning(Number(tr.dataset.id))));
   renderPager($("#warnings-pager"),total,state.page,state.pageSize,p=>{state.page=p;renderWarningsTab(applyFilters());});
 }
+function renderGroupingChecks(){
+  const rows = DATA.groupingChecks || [];
+  if(!rows.length){ empty($("#checks-table"),"همهٔ ردیف‌های بررسی‌شده با دستهٔ اعلامی مشتری هم‌خوان هستند"); return; }
+  $("#checks-table").innerHTML=`<thead><tr><th>سریال</th><th>دسته اعلامی مشتری</th><th>شرح قطعه</th><th>خانواده فعلی</th><th>محصول فعلی</th><th>روش تطبیق</th></tr></thead>
+    <tbody>${rows.map(r=>`<tr class="clickable" data-id="${esc(r["سریال اخطار"])}">
+      <td class="num">${esc(r["سریال اخطار"])}</td><td>${esc(r["دسته اعلامی مشتری"])}</td>
+      <td class="tiny">${esc(r["شرح قطعه"])}</td><td class="tiny">${esc(r["خانواده فعلی"])}</td>
+      <td class="tiny">${esc(r["محصول فعلی"])}</td><td class="tiny">${esc(r["روش تطبیق"])}</td></tr>`).join("")}</tbody>`;
+  $$("#checks-table tbody tr").forEach(tr=>tr.addEventListener("click",()=>openWarning(Number(tr.dataset.id))));
+}
+
+function renderUnmatched(){
+  const rows = DATA.unmatchedReview || [];
+  if(!rows.length){ empty($("#unmatched-table"),"موردی نیست"); return; }
+  $("#unmatched-table").innerHTML=`<thead><tr><th>سریال</th><th>شرح قطعه (بررسی)</th><th>دسته محصول</th><th>آنالیز علت ایراد</th></tr></thead>
+    <tbody>${rows.map(r=>`<tr><td class="num">${esc(r["سریال اخطار"])}</td>
+      <td class="tiny">${esc(r["شرح قطعه (بررسی)"]||"—")}</td><td class="tiny">${esc(r["دسته محصول (بررسی)"]||"—")}</td>
+      <td class="tiny">${esc(r["آنالیز علت ایراد"]||"—")}</td></tr>`).join("")}</tbody>`;
+}
+
 function renderQuality(rows){
+  renderGroupingChecks();
+  renderUnmatched();
   renderQualityKpis(rows);
   const methods=groupAgg(rows,"method").sort((a,b)=>b.warnings-a.warnings);
   renderBars($("#method-bars"),methods.slice(0,10),"warnings",()=>"#0f766e",i=>i.name);
@@ -779,7 +998,15 @@ function openWarning(id){
     <div class="k">گرید / وضعیت</div><div class="v">${esc(r.grade)} · ${statusBadge(r)}</div>
     <div class="k">محل صدور</div><div class="v">${esc(r.location||"—")}</div>
     <div class="k">نوع ایراد / خطا</div><div class="v">${esc(r.type||"—")} · ${esc(r.error||"—")}</div>
-  </div>${r.notes?`<div class="note-box"><b>توضیحات:</b>\n${esc(r.notes)}</div>`:""}`;
+    <div class="k">وضعیت اقدام</div><div class="v">${esc(stageName(r.status))} · کوتاه‌مدت: ${esc(r.stAction||"—")} · میان‌مدت: ${esc(r.mtAction||"—")}</div>
+    <div class="k">شماره فرم 8D</div><div class="v"><b>${esc(r.form8d)}</b> ${r.hasReview?'<span class="badge green">برگه بررسی دارد</span>':'<span class="badge amber">بدون برگه بررسی</span>'}</div>
+    <div class="k">شماره کلیم / کارت نارنجی</div><div class="v">${esc(r.claimNo||"—")} · ${esc(r.orangeCard||"—")}</div>
+    <div class="k">تعداد کلیم شماره فنی</div><div class="v">${fmt(r.claims)} (پذیرفته‌شده: ${fmt(r.claimsAccepted)})</div>
+  </div>
+  ${(r.cause||r.action||r.origin)?`<div class="note-box"><b>آنالیز علت ایراد:</b> ${esc(r.cause||"—")}
+<b>شرح اقدام اصلاحی:</b> ${esc(r.action||"—")}
+<b>منشاء ایراد:</b> ${esc(r.origin||"—")} ${r.reviewCategory?` · <span class="muted">دسته اعلامی مشتری: ${esc(r.reviewCategory)}</span>`:""}</div>`:`<div class="note-box muted">برای این اخطار برگهٔ بررسی ثبت نشده است؛ فرم 8D با اطلاعات سرصفحه ساخته شده و بخش‌های علت/اقدام باید تکمیل شود.</div>`}
+  ${r.notes?`<div class="note-box"><b>توضیحات:</b>\n${esc(r.notes)}</div>`:""}`;
   $("#modal").classList.remove("hidden");
 }
 function openProduct(product){
@@ -820,17 +1047,30 @@ function syncSelects(){
   fillSelect($("#f-product"),products,state.product);
   if(state.product && !products.includes(state.product)) state.product="";
 }
+function refreshMonthSelects(){
+  const months=monthsOfYear(state.year);
+  const fromEl=$("#f-from"), toEl=$("#f-to");
+  const fromVal=state.from, toVal=state.to;
+  fromEl.innerHTML=`<option value="">از ابتدا</option>`+months.map(m=>`<option value="${m.key}">${faDigits(m.label)}</option>`).join("");
+  toEl.innerHTML=`<option value="">تا انتها</option>`+months.map(m=>`<option value="${m.key}">${faDigits(m.label)}</option>`).join("");
+  fromEl.value = months.some(m=>m.key===fromVal) ? fromVal : "";
+  toEl.value = months.some(m=>m.key===toVal) ? toVal : "";
+  if(!fromEl.value) state.from="";
+  if(!toEl.value) state.to="";
+}
+
 function initFilters(){
   const groups=Array.from(new Set(DATA.warnings.map(r=>r.group))).sort();
   const cars=Array.from(new Set(DATA.warnings.map(r=>r.car))).sort();
   const grades=Array.from(new Set(DATA.warnings.map(r=>r.grade).filter(Boolean))).sort();
-  const months=DATA.months.map(m=>({key:String(m["کلید ماه"]),label:faDigits(m["ماه شمسی"])}));
+  const years=Array.from(new Set(DATA.warnings.map(r=>r.year).filter(Boolean))).sort();
   fillSelect($("#f-group"),groups,state.group);
   fillSelect($("#f-car"),cars,state.car);
   fillSelect($("#f-grade"),grades,state.grade);
   $("#f-status").innerHTML=`<option value="">همه</option><option value="open">باز</option><option value="closed">خاتمه‌یافته</option>`;
-  $("#f-from").innerHTML=`<option value="">از ابتدا</option>`+months.map(m=>`<option value="${m.key}">${m.label}</option>`).join("");
-  $("#f-to").innerHTML=`<option value="">تا انتها</option>`+months.map(m=>`<option value="${m.key}">${m.label}</option>`).join("");
+  $("#f-review").innerHTML=`<option value="">همه</option><option value="yes">دارای برگه بررسی</option><option value="no">بدون برگه بررسی</option>`;
+  $("#f-year").innerHTML=`<option value="">همه سال‌ها</option>`+years.map(y=>`<option value="${y}">${faDigits(y)}</option>`).join("");
+  refreshMonthSelects();
   syncSelects();
   $("#f-group").addEventListener("change",e=>{state.group=e.target.value;state.family="";state.product="";state.page=1;syncSelects();render();});
   $("#f-family").addEventListener("change",e=>{state.family=e.target.value;state.product="";state.page=1;syncSelects();render();});
@@ -838,14 +1078,22 @@ function initFilters(){
   $("#f-car").addEventListener("change",e=>{state.car=e.target.value;state.page=1;render();});
   $("#f-grade").addEventListener("change",e=>{state.grade=e.target.value;state.page=1;render();});
   $("#f-status").addEventListener("change",e=>{state.status=e.target.value;state.page=1;render();});
-  $("#f-from").addEventListener("change",e=>{state.from=e.target.value;state.page=1;render();});
-  $("#f-to").addEventListener("change",e=>{state.to=e.target.value;state.page=1;render();});
+  $("#f-review").addEventListener("change",e=>{state.review=e.target.value;state.page=1;render();});
+  $("#f-year").addEventListener("change",e=>{
+    state.year=e.target.value; state.from=""; state.to=""; state.page=1;
+    refreshMonthSelects();
+    setTrendMode(state.year ? "month" : "year");
+    render();
+  });
+  $("#f-from").addEventListener("change",e=>{state.from=e.target.value;state.page=1;setTrendMode("month");render();});
+  $("#f-to").addEventListener("change",e=>{state.to=e.target.value;state.page=1;setTrendMode("month");render();});
   let timer=null;
   $("#f-q").addEventListener("input",e=>{clearTimeout(timer);timer=setTimeout(()=>{state.q=e.target.value;state.page=1;render();},180);});
   $("#reset").addEventListener("click",()=>{
-    Object.assign(state,{group:"",family:"",product:"",car:"",grade:"",status:"",from:"",to:"",q:"",productQ:"",warningQ:"",page:1});
-    $("#f-q").value=""; $("#product-search").value=""; $("#warning-search").value="";
-    syncSelects(); $("#f-car").value="";$("#f-grade").value="";$("#f-status").value="";$("#f-from").value="";$("#f-to").value="";
+    Object.assign(state,{group:"",family:"",product:"",car:"",grade:"",status:"",year:"",from:"",to:"",q:"",review:"",productQ:"",warningQ:"",reviewQ:"",page:1});
+    $("#f-q").value=""; $("#product-search").value=""; $("#warning-search").value=""; $("#review-search").value="";
+    syncSelects(); refreshMonthSelects();
+    $("#f-car").value="";$("#f-grade").value="";$("#f-status").value="";$("#f-year").value="";$("#f-review").value="";$("#f-from").value="";$("#f-to").value="";
     render();
   });
   $("#export").addEventListener("click",exportCsv);
@@ -853,17 +1101,24 @@ function initFilters(){
   $("#page-size").addEventListener("change",e=>{state.pageSize=Number(e.target.value);state.page=1;render();});
   $("#product-search").addEventListener("input",e=>{state.productQ=e.target.value;state.page=1;renderProductsTab(applyFilters());});
   $("#warning-search").addEventListener("input",e=>{state.warningQ=e.target.value;state.page=1;renderWarningsTab(applyFilters());});
+  $("#review-search").addEventListener("input",e=>{state.reviewQ=e.target.value;state.page=1;renderReviews(applyFilters());});
+  $("#review-export").addEventListener("click",exportReviewCsv);
   $$("#tabs .tab").forEach(btn=>btn.addEventListener("click",()=>switchTab(btn.dataset.tab)));
   $$("#trend-toggle button").forEach(btn=>btn.addEventListener("click",()=>{
-    state.trendMode=btn.dataset.mode;
-    $$("#trend-toggle button").forEach(b=>b.classList.toggle("active",b===btn));
-    $("#trend-hint").textContent = state.trendMode==="year" ? "سال شمسی" : "ماه شمسی";
+    setTrendMode(btn.dataset.mode);
     renderTrend($("#trend"),applyFilters());
   }));
   $("#modal-close").addEventListener("click",()=>$("#modal").classList.add("hidden"));
   $("#modal").addEventListener("click",e=>{if(e.target.id==="modal") $("#modal").classList.add("hidden");});
   document.addEventListener("keydown",e=>{if(e.key==="Escape") $("#modal").classList.add("hidden");});
 }
+function setTrendMode(mode){
+  state.trendMode = mode;
+  $$("#trend-toggle button").forEach(b=>b.classList.toggle("active", b.dataset.mode===mode));
+  const hint = $("#trend-hint");
+  if(hint) hint.textContent = mode==="year" ? "سال شمسی" : "ماه شمسی";
+}
+
 function switchTab(tab){
   state.tab=tab;
   $$("#tabs .tab").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
@@ -875,6 +1130,8 @@ function render(){
   syncSelects();
   renderKpis(rows);
   renderDonut($("#donut"),rows);
+  renderStatusDonut($("#status-donut"),rows);
+  renderActionBars(rows);
   renderTrend($("#trend"),rows);
   renderBars($("#family-bars"),groupAgg(rows,"family").sort((a,b)=>b.warnings-a.warnings).slice(0,12),"warnings",i=>color((rows.find(r=>r.family===i.name)||{}).group||"#0f766e"),i=>i.name);
   renderProductBars(rows);
@@ -883,6 +1140,7 @@ function render(){
   renderFamiliesTab(rows);
   renderProductsTab(rows);
   renderWarningsTab(rows);
+  renderReviews(rows);
   renderQuality(rows);
 }
 function toCsv(rows){
@@ -890,7 +1148,10 @@ function toCsv(rows){
     ["سریال","id"],["تاریخ","date"],["ماه","month"],["خودرو","car"],["گروه ساخت","make"],["شرح قطعه","part"],["شرح منشا","origin"],
     ["شماره فنی","tech"],["کد راهکاران","code"],["محصول راهکاران","rahkaran"],["گروه محصول","group"],["خانواده","family"],["محصول","product"],
     ["کد گروه محصول","catalogCode"],["در کاتالوگ","inCatalog"],["در دامنه","inScope"],["روش تطبیق","method"],["اطمینان","confidence"],
-    ["قطعات معیوب","qty"],["نمره منفی","score"],["گرید","grade"],["وضعیت","status"],["نیاز به بازبینی","review"]
+    ["قطعات معیوب","qty"],["نمره منفی","score"],["گرید","grade"],["وضعیت","status"],["نیاز به بازبینی","review"],
+    ["وضعیت اقدام کوتاه مدت","stAction"],["وضعیت اقدام میان مدت","mtAction"],
+    ["آنالیز علت ایراد","cause"],["شرح اقدام اصلاحی","action"],["منشاء ایراد","origin"],
+    ["شماره کلیم","claimNo"],["شماره کارت نارنجی","orangeCard"],["شماره فرم 8D","form8d"],["دارای برگه بررسی","hasReview"]
   ];
   const head=cols.map(c=>c[0]).join(",");
   const body=rows.map(r=>cols.map(([_,k])=>{
@@ -899,23 +1160,40 @@ function toCsv(rows){
   }).join(",")).join("\n");
   return "\ufeff"+head+"\n"+body;
 }
-function exportCsv(){
-  const csv=toCsv(applyFilters());
+function exportReviewCsv(){
+  const rows = reviewRows(applyFilters());
+  const cols=[["سریال","id"],["تاریخ","date"],["خودرو","car"],["شرح قطعه","part"],["شماره فنی","tech"],
+    ["محصول راهکاران","rahkaran"],["گروه محصول","group"],["خانواده","family"],["محصول","product"],
+    ["دسته محصول (بررسی)","reviewCategory"],["آنالیز علت ایراد","cause"],["شرح اقدام اصلاحی","action"],
+    ["منشاء ایراد","origin"],["شماره کلیم","claimNo"],["شماره کارت نارنجی","orangeCard"],
+    ["تعداد کلیم شماره فنی","claims"],["شماره فرم 8D","form8d"],["وضعیت","status"]];
+  const head=cols.map(c=>c[0]).join(",");
+  const body=rows.map(r=>cols.map(([_,k])=>{
+    let v=r[k]; if(typeof v==="boolean") v=v?"بله":"خیر"; if(v===null||v===undefined) v="";
+    return `"${String(v).replace(/"/g,'""')}"`;
+  }).join(",")).join("\n");
+  downloadCsv("\ufeff"+head+"\n"+body, "ekhtar-reviews.csv");
+}
+
+function downloadCsv(csv, filename){
   const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a");
-  a.href=url; a.download="ekhtar-grouped.csv"; a.rel="noopener";
+  a.href=url; a.download=filename; a.rel="noopener";
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),10000);
-  // در پیش‌نمایش داخل iframe ممکن است دانلود مسدود شود؛ راه جایگزین نشان می‌دهیم
   const sandboxed = (()=>{ try { return window.self!==window.top; } catch(e){ return true; } })();
-  if(sandboxed) showCsvFallback(csv,url);
+  if(sandboxed) showCsvFallback(csv,url,filename);
 }
-function showCsvFallback(csv,url){
+
+function exportCsv(){
+  downloadCsv(toCsv(applyFilters()), "ekhtar-grouped.csv");
+}
+function showCsvFallback(csv,url,filename="ekhtar-grouped.csv"){
   $("#modal-title").textContent="خروجی CSV";
   $("#modal-body").innerHTML=`<div class="note-box" style="margin-top:0">فایل CSV آماده است. اگر دانلود به‌صورت خودکار شروع نشد (محدودیت پیش‌نمایش)، روی دکمهٔ «دانلود» بزنید یا متن زیر را کپی کنید.</div>
     <div style="display:flex;gap:8px;margin:10px 0;flex-wrap:wrap">
-      <a class="btn primary" href="${url}" download="ekhtar-grouped.csv" target="_blank" rel="noopener">دانلود فایل CSV</a>
+      <a class="btn primary" href="${url}" download="${filename}" target="_blank" rel="noopener">دانلود فایل CSV</a>
       <button class="btn" id="copy-csv">کپی متن</button>
       <span class="muted tiny" id="copy-state"></span>
     </div>

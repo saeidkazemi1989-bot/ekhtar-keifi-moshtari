@@ -63,11 +63,22 @@ class Catalog:
         return None
 
 
+# خانواده‌هایی که در فایل گروه‌بندی با دو نام نوشته شده‌اند و یک خط محصول‌اند
+FAMILY_ALIASES = {
+    "ESC": "مدولاتور",
+}
+
+
 def _clean(value: object) -> str:
     if value is None or (isinstance(value, float) and pd.isna(value)):
         return ""
-    text = str(value).strip()
+    text = " ".join(str(value).split())
     return "" if text.lower() in {"nan", "none"} else text
+
+
+def canonical_family(family: str) -> str:
+    name = " ".join(str(family).split())
+    return FAMILY_ALIASES.get(name, name)
 
 
 def load_catalog(path: str | Path) -> Catalog:
@@ -98,7 +109,7 @@ def load_catalog(path: str | Path) -> Catalog:
             continue
         seen_codes.add(code)
         product = _clean(row["نام محصول"])
-        family = _clean(row["خانواده محصول"])
+        family = canonical_family(_clean(row["خانواده محصول"]))
         group = _clean(row["گروه محصول نهایی"])
         if not product or product == "-" or not family or family == "-" or not group or group == "-":
             continue

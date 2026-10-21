@@ -33,9 +33,60 @@ def kpis(frame: pd.DataFrame) -> dict:
         "in_catalog": in_catalog,
         "in_catalog_pct": (in_catalog / total if total else 0),
         "review": int((frame["نیاز به بازبینی"] == "بله").sum()),
+        "reviewed": int((frame["دارای برگه بررسی"] == "بله").sum()) if "دارای برگه بررسی" in frame.columns else 0,
+        "claims": int(pd.to_numeric(frame.get("تعداد کلیم"), errors="coerce").fillna(0).sum()) if "تعداد کلیم" in frame.columns else 0,
+        "short_term": int((frame["وضعیت اخطار"] == "اقدام كوتاه مدت").sum()),
+        "medium_term": int((frame["وضعیت اخطار"] == "اقدام ميان مدت").sum()),
         "tech": int(frame["شماره فنی"].replace("", pd.NA).dropna().nunique()),
         "serial": int(frame["سریال اخطار"].nunique()),
     }
+
+
+def stage_summary(frame: pd.DataFrame) -> pd.DataFrame:
+    """وضعیت اخطار: خاتمه‌یافته، در اقدام کوتاه‌مدت، در اقدام میان‌مدت، تنظیم."""
+    table = summarize(frame, "وضعیت اخطار")
+    total = table[WARNING_COUNT].sum() or 1
+    table["سهم"] = table[WARNING_COUNT] / total
+    return table
+
+
+def action_summary(frame: pd.DataFrame) -> pd.DataFrame:
+    """وضعیت تایید اقدامات کوتاه‌مدت و میان‌مدت."""
+    rows: list[dict] = []
+    for label, column in (("اقدام کوتاه مدت", "وضعیت اقدام کوتاه مدت"), ("اقدام میان مدت", "وضعیت اقدام میان مدت")):
+        if column not in frame.columns:
+            continue
+        counts = frame[column].fillna("ثبت نشده").replace("", "ثبت نشده").value_counts()
+        for status, count in counts.items():
+            rows.append(
+                {
+                    "نوع اقدام": label,
+                    "وضعیت تایید": str(status),
+                    WARNING_COUNT: int(count),
+                    "سهم": float(count) / len(frame) if len(frame) else 0.0,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def review_summary(frame: pd.DataFrame) -> pd.DataFrame:
+    """خلاصهٔ برگه‌های بررسی به تفکیک منشا ایراد و دسته اعلامی مشتری."""
+    if "دارای برگه بررسی" not in frame.columns:
+        return pd.DataFrame()
+    reviewed = frame[frame["دارای برگه بررسی"] == "بله"]
+    if reviewed.empty:
+        return pd.DataFrame()
+    rows: list[dict] = []
+    for label, column in (
+        ("منشاء ایراد", "منشاء ایراد"),
+        ("دسته اعلامی مشتری", "دسته محصول (بررسی)"),
+    ):
+        if column not in reviewed.columns:
+            continue
+        counts = reviewed[column].fillna("ثبت نشده").replace("", "ثبت نشده").value_counts()
+        for value, count in counts.items():
+            rows.append({"نوع دسته‌بندی": label, "مقدار": str(value), WARNING_COUNT: int(count)})
+    return pd.DataFrame(rows)
 
 
 def summarize(frame: pd.DataFrame, by: str | list[str], with_latest: bool = False) -> pd.DataFrame:

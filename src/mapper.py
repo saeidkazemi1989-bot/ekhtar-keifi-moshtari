@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -64,6 +65,12 @@ class WarningMapping:
     rahkaran_title: str = ""
     candidates: int = 0
     note: str = ""
+
+
+# منشاهایی که اطلاعات جدیدی به تشخیص اضافه نمی‌کنند
+_GENERIC_ORIGIN = re.compile(
+    r"^(?:\d+|خودرو|نامشخص|سایر|سایر موارد|مجموعه داشبورد|داشبورد|کل خودرو|خودرو کامل)$"
+)
 
 
 def _clean(value: object) -> str:
@@ -249,18 +256,25 @@ class ProductMapper:
         part_mapping = classify_text(part_text, car_group)
         used_origin = False
         generic_out = part_mapping.group == OUT_GROUP and part_mapping.family.endswith("سایر")
-        if (
-            generic_out
-            and origin_text
+        # شرح قطعه ممکن است نام یک مجموعه باشد (مثل «مجموعه داشبورد») در حالی که
+        # شرح منشا قطعهٔ معیوب واقعی را مشخص می‌کند (سوکت ایربگ، ایموبلایزر، ...).
+        origin_usable = (
+            bool(origin_text)
             and not origin_text.strip().isdigit()
-        ):
+            and not _GENERIC_ORIGIN.search(origin_text)
+        )
+        container_part = part_mapping.group == OUT_GROUP and (
+            part_mapping.family.endswith("سایر") or part_mapping.family.endswith("داشبورد")
+        )
+        if origin_usable and (container_part or generic_out):
             origin_mapping = classify_text(origin_text, car_group)
-            if origin_mapping.group != OUT_GROUP:
+            origin_specific = origin_mapping.group != OUT_GROUP or not origin_mapping.family.endswith("سایر")
+            if origin_specific:
                 part_mapping = origin_mapping
                 used_origin = True
 
         if part_mapping.group == OUT_GROUP:
-            method = "بدون تطابق" if generic_out else "شرح قطعه (خارج از دامنه)"
+            method = "بدون تطابق" if generic_out else "شرح منشا (خارج از دامنه)" if used_origin else "شرح قطعه (خارج از دامنه)"
         else:
             method = "شرح منشا" if used_origin else "شرح قطعه"
         catalog_product = _catalog_product(self.catalog, part_mapping) if part_mapping.in_catalog else None

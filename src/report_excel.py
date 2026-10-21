@@ -13,6 +13,7 @@ from openpyxl.utils import get_column_letter
 
 from .aggregate import (
     DEFECTIVE,
+    action_summary,
     SCORE,
     WARNING_COUNT,
     bucket_summary,
@@ -23,6 +24,8 @@ from .aggregate import (
     month_summary,
     out_of_scope_summary,
     product_summary,
+    review_summary,
+    stage_summary,
     tech_table,
     year_summary,
     top_parts,
@@ -212,6 +215,10 @@ def _kpi_table(frame: pd.DataFrame) -> pd.DataFrame:
         ("در فایل گروه‌بندی (کد/نام محصول)", values["in_catalog"], "اخطار"),
         ("درصد در فایل گروه‌بندی", values["in_catalog_pct"], "درصد"),
         ("نیاز به بازبینی", values["review"], "اخطار"),
+        ("برگه بررسی ثبت‌شده", values.get("reviewed", 0), "اخطار"),
+        ("اخطار در اقدام کوتاه‌مدت", values.get("short_term", 0), "اخطار"),
+        ("اخطار در اقدام میان‌مدت", values.get("medium_term", 0), "اخطار"),
+        ("مجموع کلیم‌های شماره فنی", values.get("claims", 0), "کلیم"),
         ("تعداد شماره فنی یکتا", values["tech"], "شماره"),
     ]
     return pd.DataFrame(rows, columns=["شاخص", "مقدار", "واحد"])
@@ -223,6 +230,9 @@ def build_excel(
     tech_map: pd.DataFrame,
     output_path: str | Path,
     source_names: dict[str, str] | None = None,
+    eight_d: pd.DataFrame | None = None,
+    grouping_checks: pd.DataFrame | None = None,
+    unmatched_review: pd.DataFrame | None = None,
 ) -> Path:
     source_names = source_names or {}
     output_path = Path(output_path)
@@ -413,6 +423,114 @@ def build_excel(
             row,
         )
 
+    # ---------------------------------------------------------------- وضعیت اقدام
+    ws = wb.create_sheet("وضعیت اقدام")
+    ws.sheet_view.rightToLeft = True
+    row = _title(ws, 1, 8, "وضعیت اخطار و اقدامات کوتاه‌مدت/میان‌مدت", "چند اخطار خاتمه یافته و چند اخطار در هر مرحلهٔ اقدام قرار دارد")
+    stages = stage_summary(enriched)
+    sh, sl = _write_table(
+        ws,
+        stages[["وضعیت اخطار", WARNING_COUNT, "سهم", DEFECTIVE, SCORE, "اخطار باز", "سهم اخطار"]],
+        row,
+        "وضعیت اخطار",
+        number_formats={"سهم": "0.0%", "سهم اخطار": "0.0%"},
+    )
+    _pie_from_table(ws, sh, sl, 1, 2, f"H{sh}", "سهم وضعیت‌های اخطار", width=16, height=10)
+    actions = action_summary(enriched)
+    if not actions.empty:
+        _write_table(
+            ws,
+            actions[["نوع اقدام", "وضعیت تایید", WARNING_COUNT, "سهم"]],
+            sl + 3,
+            "وضعیت تایید اقدامات",
+            number_formats={"سهم": "0.0%"},
+        )
+    if "دارای برگه بررسی" in enriched.columns:
+        covered = int((enriched["دارای برگه بررسی"] == "بله").sum())
+        ws.cell(row=sl + 3 + len(actions) + 3, column=1, value="پوشش برگهٔ بررسی").font = Font(name=PERSIAN_FONT, size=10, bold=True)
+        ws.cell(row=sl + 3 + len(actions) + 3, column=2, value=f"{covered:,} از {len(enriched):,} اخطار")
+
+    # ---------------------------------------------------------------- بررسی اخطارها
+    ws = wb.create_sheet("بررسی اخطارها")
+    ws.sheet_view.rightToLeft = True
+    row = _title(
+        ws,
+        1,
+        13,
+        "برگه‌های بررسی اخطار (علت ایراد و اقدام اصلاحی)",
+        "داده‌های شیت «اخطار» فایل C_Plus بر اساس سریال اخطار به گزارش متصل شده است؛ ردیف‌های بدون اخطار متناظر در شیت «کیفیت داده» آمده‌اند.",
+    )
+    if "دارای برگه بررسی" in enriched.columns and (enriched["دارای برگه بررسی"] == "بله").any():
+        reviewed = enriched[enriched["دارای برگه بررسی"] == "بله"].copy()
+        reviewed["شماره فرم 8D"] = [
+            f"8D-{int(y) if pd.notna(y) else '----'}-{int(s)}"
+            for s, y in zip(reviewed["سریال اخطار"], reviewed["سال"])
+        ]
+        reviewed = reviewed.sort_values(["سال", "سریال اخطار"])
+        columns = [
+            "سریال اخطار",
+            "تاریخ تایید",
+            "گروه خودرو",
+            "شرح قطعه",
+            "شماره فنی",
+            "محصول",
+            "خانواده محصول",
+            "دسته محصول (بررسی)",
+            "آنالیز علت ایراد",
+            "شرح اقدام اصلاحی",
+            "منشاء ایراد",
+            "شماره کلیم",
+            "شماره کارت نارنجی",
+            "شماره فرم 8D",
+        ]
+        columns = [c for c in columns if c in reviewed.columns]
+        _write_table(ws, reviewed[columns], row)
+        ws.column_dimensions["I"].width = 60
+        ws.column_dimensions["J"].width = 45
+    else:
+        ws.cell(row=row, column=1, value="برگهٔ بررسی برای اخطارها پیدا نشد.")
+
+    # ---------------------------------------------------------------- فرم 8D
+    ws = wb.create_sheet("فرم 8D")
+    ws.sheet_view.rightToLeft = True
+    row = _title(ws, 1, 11, "وضعیت فرم‌های 8D", "برای هر اخطار بررسی‌شده یا باز یک فرم 8D با شماره 8D-سال-سریال ساخته شده است")
+    if eight_d is not None and not eight_d.empty:
+        form_table = eight_d.copy()
+        form_table["شماره فرم 8D"] = [
+            f"8D-{int(y) if pd.notna(y) else '----'}-{int(s)}"
+            for s, y in zip(form_table["سریال اخطار"], form_table["سال"])
+        ]
+        form_table["وضعیت فرم"] = [
+            "آمادهٔ تایید" if (r["دارای برگه بررسی"] == "بله" and str(r["آنالیز علت ایراد"]).strip()) else "در انتظار تکمیل"
+            for _, r in form_table.iterrows()
+        ]
+        cols = [
+            "شماره فرم 8D",
+            "سریال اخطار",
+            "تاریخ تایید",
+            "گروه خودرو",
+            "شرح قطعه",
+            "محصول",
+            "وضعیت اخطار",
+            "دارای برگه بررسی",
+            "آنالیز علت ایراد",
+            "شرح اقدام اصلاحی",
+            "منشاء ایراد",
+            "وضعیت فرم",
+        ]
+        cols = [c for c in cols if c in form_table.columns]
+        fh, fl = _write_table(ws, form_table[cols], row)
+        ws.column_dimensions["I"].width = 50
+        ws.column_dimensions["J"].width = 40
+        from openpyxl.formatting.rule import CellIsRule
+
+        ws.conditional_formatting.add(
+            f"L{fh + 1}:L{fl}",
+            CellIsRule(operator="equal", formula=['"آمادهٔ تایید"'], fill=PatternFill("solid", fgColor="DCFCE7")),
+        )
+    else:
+        ws.cell(row=row, column=1, value="فرم 8D ساخته نشده است.")
+
     # ---------------------------------------------------------------- روند سالانه و ماهانه
     ws = wb.create_sheet("روند زمانی")
     ws.sheet_view.rightToLeft = True
@@ -478,6 +596,27 @@ def build_excel(
             subtitle="این ردیف‌ها ممکن است خطای ثبت یا تعداد تجمعی باشند؛ مجموع قطعات معیوب را به‌شدت تحت تأثیر قرار می‌دهند.",
         )
         q_last = o_last
+    if grouping_checks is not None and not grouping_checks.empty:
+        _, g_last = _write_table(
+            ws,
+            grouping_checks,
+            q_last + 3,
+            "کنترل گروه‌بندی: ردیف‌های ناهمخوان با دستهٔ اعلامی مشتری",
+            subtitle="دستهٔ محصول در برگهٔ بررسی مشتری با خانواده/محصول داخلی هم‌پوشانی ندارد؛ این ردیف‌ها را دستی بررسی کنید.",
+        )
+        q_last = g_last
+
+    if unmatched_review is not None and not unmatched_review.empty:
+        small = unmatched_review[["سریال اخطار", "شرح قطعه (بررسی)", "دسته محصول (بررسی)", "آنالیز علت ایراد"]].copy()
+        small.columns = ["سریال اخطار", "شرح قطعه (بررسی)", "دسته محصول (بررسی)", "آنالیز علت ایراد"]
+        _, q_last = _write_table(
+            ws,
+            small,
+            q_last + 3,
+            "برگه‌های بررسی بدون اخطار متناظر",
+            subtitle="این سریال‌ها در فایل اخطارهای کیفی وجود ندارند و در گزارش اصلی لحاظ نشده‌اند.",
+        )
+
     review = enriched[enriched["نیاز به بازبینی"] == "بله"].head(300)
     _write_table(
         ws,
