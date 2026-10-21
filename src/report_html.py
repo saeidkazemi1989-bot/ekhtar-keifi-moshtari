@@ -122,7 +122,8 @@ def _payload(
                 "branch": _clean_text(row.get("برنچ", "")),
                 "branchSource": _clean_text(row.get("منبع برنچ", "")),
                 "defect": _clean_text(row.get("ایراد مشتری", "")),
-                "defectGroup": _clean_text(row.get("گروه ایراد مشتری", "")),
+                "defectCat": _clean_text(row.get("دسته‌بندی ایراد", "")),
+                "defectGroup": _clean_text(row.get("گروه ایراد", "")),
                 "defectRepeat": int(row.get("تکرار ایراد در محصول", 0) or 0),
                 "defectRepeatTech": int(row.get("تکرار ایراد در قطعه", 0) or 0),
                 "causeStd": _clean_text(row.get("علت استاندارد", "")),
@@ -420,7 +421,7 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
   <button class="tab" data-tab="products">محصولات</button>
   <button class="tab" data-tab="warnings">فهرست اخطارها</button>
   <button class="tab" data-tab="reviews">بررسی اخطارها</button>
-  <button class="tab" data-tab="defects">ایرادهای تکراری</button>
+  <button class="tab" data-tab="defects">ایرادهای مشتری</button>
   <button class="tab" data-tab="forms8d">فرم‌های 8D</button>
   <button class="tab" data-tab="quality">کیفیت تطبیق</button>
 </nav>
@@ -534,14 +535,15 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
   <section class="tab-panel" id="tab-defects">
     <div class="kpi-grid" id="defect-kpis" style="grid-template-columns:repeat(4,1fr)"></div>
     <div class="grid-2">
-      <div class="card"><h3>ایرادهای پرتکرار مشتری <span class="hint">پس از یکسان‌سازی</span></h3><div class="bars" id="defect-bars"></div></div>
+      <div class="card"><h3>پرتکرارترین ایرادهای مشتری <span class="hint">توصیف واقعی استخراج‌شده از «توضیحات»</span></h3><div class="bars" id="defect-bars"></div></div>
       <div class="card"><h3>گروه ۶M علت‌ها <span class="hint">نیروی انسانی / تجهیزات / مواد / روش / اندازه‌گیری / محیط</span></h3><div class="bars" id="m6-bars"></div></div>
     </div>
     <div class="card">
       <div class="toolbar">
-        <h3 style="margin:0">ایرادهای یکسان‌شده <span class="hint" id="defect-count"></span></h3>
+        <h3 style="margin:0">ایرادهای مشتری <span class="hint" id="defect-count"></span></h3>
         <div class="right">
-          <div class="search-mini"><input id="defect-search" placeholder="جستجو در ایراد / گروه"></div>
+          <div class="seg" id="defect-cat" style="margin-bottom:0"><button data-cat="all" class="active">همه</button><button data-cat="عملکردی">عملکردی</button><button data-cat="ظاهری">ظاهری</button></div>
+          <div class="search-mini"><input id="defect-search" placeholder="جستجو در ایراد / دسته‌بندی / گروه"></div>
           <button class="btn" id="defect-export">خروجی CSV</button>
         </div>
       </div>
@@ -651,7 +653,7 @@ const reviewBadge = r => r.review ? '<span class="badge red">بازبینی</spa
 const catalogBadge = r => r.inCatalog ? '<span class="badge green">کاتالوگ</span>' : (r.inScope ? '<span class="badge slate">سایر</span>' : '<span class="badge slate">خارج</span>');
 
 const state = {group:"",family:"",product:"",car:"",grade:"",status:"",year:"",from:"",to:"",q:"",tab:"overview",
-  review:"",branch:"",defect:"",productQ:"",warningQ:"",reviewQ:"",defectQ:"",formQ:"",formStatus:"",formScope:"working",
+  review:"",branch:"",defect:"",defectCat:"all",productQ:"",warningQ:"",reviewQ:"",defectQ:"",formQ:"",formStatus:"",formScope:"working",
   page:1,pageSize:25,productSort:{key:"warnings",dir:-1},trendMode:"year"};
 let currentProducts = [];
 let currentWarnings = [];
@@ -659,7 +661,7 @@ let currentReviews = [];
 
 function monthKey(r){ return r.monthKey || 0; }
 function haystack(r){
-  return [r.part,r.origin,r.tech,r.code,r.rahkaran,r.product,r.family,r.group,r.branch,r.car,r.id,r.error,r.cause,r.causeStd,r.m6,r.defect,r.action].join(" ").toLowerCase();
+  return [r.part,r.origin,r.tech,r.code,r.rahkaran,r.product,r.family,r.group,r.branch,r.car,r.id,r.error,r.type,r.cause,r.causeStd,r.m6,r.defect,r.defectCat,r.defectGroup,r.action].join(" ").toLowerCase();
 }
 function applyFilters(){
   const q = state.q.trim().toLowerCase();
@@ -1078,12 +1080,16 @@ function renderPager(el,total,page,size,onChange){
 }
 
 
-/* ------------------------------------------------------------ ایرادهای یکسان‌شده */
+/* ------------------------------------------------------------ ایرادهای مشتری */
+function defectCatBadge(cat){
+  const cls=cat==="ظاهری"?"violet":"amber";
+  return cat?`<span class="badge ${cls}">${esc(cat)}</span>`:"";
+}
 function defectRows(rows){
   const map=new Map();
   rows.forEach(r=>{
     const key=r.defect||"نامشخص";
-    if(!map.has(key)) map.set(key,{name:key,group:r.defectGroup||"نامشخص",warnings:0,qty:0,products:new Set(),families:new Set(),open:0,maxRepeat:0});
+    if(!map.has(key)) map.set(key,{name:key,cat:r.defectCat||"عملکردی",group:r.defectGroup||"نامشخص",warnings:0,qty:0,products:new Set(),families:new Set(),open:0,maxRepeat:0});
     const item=map.get(key);
     item.warnings+=1; item.qty+=Number(r.qty||0); item.open+=r.open?1:0;
     item.products.add(r.product); item.families.add(r.family);
@@ -1093,28 +1099,31 @@ function defectRows(rows){
     .sort((a,b)=>b.warnings-a.warnings);
 }
 function renderDefectsTab(rows){
-  const items=defectRows(rows);
-  const unreviewed=rows.filter(r=>!r.hasReview).length;
+  const scoped=rows.filter(r=>state.defectCat==="all"||r.defectCat===state.defectCat);
+  const items=defectRows(scoped);
   const top=items[0];
-  const multi=rows.filter(r=>Number(r.defectRepeat||0)>1).length;
+  const functional=rows.filter(r=>r.defectCat==="عملکردی").length;
+  const visual=rows.filter(r=>r.defectCat==="ظاهری").length;
+  const empty=rows.length-functional-visual;
   const cards=[
-    ["ایراد یکتا",fmt(items.length),`از ${fmt(rows.length)} اخطار`,""],
-    ["پرتکرارترین ایراد",top?esc(top.name):"—",top?`${fmt(top.warnings)} اخطار`:"","amber"],
-    ["اخطارهای تکراری",fmt(multi),"ایرادی که بیش از یک بار در همان محصول دیده شده","violet"],
-    ["بدون برگه بررسی",fmt(unreviewed),"علت ریشه‌ای ثبت نشده","rose"]
+    ["ایراد یکتا",fmt(items.length),`از ${fmt(scoped.length)} اخطار`,""],
+    ["عملکردی",fmt(functional),"ایراد در کارکرد قطعه","amber"],
+    ["ظاهری",fmt(visual),"ایراد در ظاهر/شکل قطعه","violet"],
+    ["پرتکرارترین ایراد",top?esc(top.name):"—",top?`${fmt(top.warnings)} اخطار · ${esc(top.cat)}`:"","rose"]
   ];
+  if(empty) cards[0][2]=`از ${fmt(scoped.length)} اخطار · بدون دسته: ${fmt(empty)}`;
   $("#defect-kpis").innerHTML=cards.map(([l,v,s,c])=>`<div class="kpi ${c}"><div class="label">${l}</div><div class="value">${v}</div><div class="sub">${s}</div></div>`).join("");
   renderBars($("#defect-bars"),items.slice(0,10),"warnings",()=>"#e11d48",i=>i.name);
   const m6=groupAgg(rows.filter(r=>r.m6&&r.m6!=="نامشخص"),"m6").sort((a,b)=>b.warnings-a.warnings);
   renderBars($("#m6-bars"),m6,"warnings",i=>i.name==="تجهیزات"?"#0f766e":"#d97706",i=>i.name);
 
   const q=state.defectQ.trim().toLowerCase();
-  let list=items.filter(i=>!q || (i.name+" "+i.group).toLowerCase().includes(q));
+  let list=items.filter(i=>!q || (i.name+" "+i.group+" "+i.cat).toLowerCase().includes(q));
   $("#defect-count").textContent=`${fmt(list.length)} ایراد`;
-  const total=rows.length||1;
-  $("#defects-table").innerHTML=`<thead><tr><th>ایراد مشتری (استاندارد)</th><th>گروه</th><th>اخطار</th><th>سهم</th><th>محصول</th><th>خانواده</th><th>قطعات معیوب</th><th>بیشترین تکرار</th><th>باز</th><th></th></tr></thead>
+  const total=scoped.length||1;
+  $("#defects-table").innerHTML=`<thead><tr><th>ایراد مشتری (توصیف واقعی)</th><th>دسته‌بندی</th><th>گروه</th><th>اخطار</th><th>سهم</th><th>محصول</th><th>خانواده</th><th>قطعات معیوب</th><th>بیشترین تکرار</th><th>باز</th><th></th></tr></thead>
     <tbody>${list.map(i=>`<tr>
-      <td><b>${esc(i.name)}</b></td><td class="tiny">${esc(i.group)}</td>
+      <td><b>${esc(i.name)}</b></td><td>${defectCatBadge(i.cat)}</td><td class="tiny">${esc(i.group)}</td>
       <td class="num">${fmt(i.warnings)}</td><td class="num muted">${pct(i.warnings/total)}</td>
       <td class="num">${fmt(i.products)}</td><td class="num">${fmt(i.families)}</td>
       <td class="num">${fmt(i.qty)}</td><td class="num">${i.maxRepeat>1?`<span class="badge red">×${fmt(i.maxRepeat)}</span>`:fmt(1)}</td>
@@ -1136,9 +1145,9 @@ function renderDefectsTab(rows){
     <tbody>${causeList.map(i=>`<tr><td><b>${esc(i.name)}</b></td><td class="tiny">${esc(i.group)}</td><td class="tiny">${esc(i.m6)}</td><td class="num">${fmt(i.warnings)}</td><td class="num">${fmt(i.products)}</td></tr>`).join("")}</tbody>`;
 }
 function exportDefectCsv(){
-  const rows=defectRows(applyFilters());
-  const head=["ایراد مشتری","گروه ایراد","تعداد اخطار","تعداد محصول","تعداد خانواده","قطعات معیوب","بیشترین تکرار","اخطار باز"];
-  const body=rows.map(i=>[i.name,i.group,i.warnings,i.products,i.families,i.qty,i.maxRepeat,i.open].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(","));
+  const rows=defectRows(applyFilters().filter(r=>state.defectCat==="all"||r.defectCat===state.defectCat));
+  const head=["ایراد مشتری","دسته‌بندی ایراد","گروه ایراد","تعداد اخطار","تعداد محصول","تعداد خانواده","قطعات معیوب","بیشترین تکرار","اخطار باز"];
+  const body=rows.map(i=>[i.name,i.cat,i.group,i.warnings,i.products,i.families,i.qty,i.maxRepeat,i.open].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(","));
   downloadCsv("\ufeff"+head.join(",")+"\n"+body.join("\n"),"ekhtar-defects.csv");
 }
 
@@ -1385,7 +1394,7 @@ function openWarning(id){
     <div class="k">وضعیت اقدام</div><div class="v">${esc(stageName(r.status))} · کوتاه‌مدت: ${esc(r.stAction||"—")} · میان‌مدت: ${esc(r.mtAction||"—")}</div>
     <div class="k">شماره فرم 8D</div><div class="v"><b>${esc(r.form8d)}</b> ${r.hasReview?'<span class="badge green">برگه بررسی دارد</span>':'<span class="badge amber">بدون برگه بررسی</span>'}</div>
     <div class="k">برنچ</div><div class="v">${esc(r.branch||"—")} ${r.branchSource?`<span class="muted tiny">(${esc(r.branchSource)})</span>`:""}</div>
-    <div class="k">ایراد مشتری</div><div class="v">${esc(r.defect||"—")} ${r.defectRepeat>1?`<span class="badge red">${fmt(r.defectRepeat)} بار در این محصول</span>`:""}</div>
+    <div class="k">ایراد مشتری</div><div class="v">${esc(r.defect||"—")} ${defectCatBadge(r.defectCat)} ${r.defectGroup?`<span class="muted tiny">گروه: ${esc(r.defectGroup)}</span>`:""} ${r.defectRepeat>1?`<span class="badge red">${fmt(r.defectRepeat)} بار در این محصول</span>`:""}</div>
     <div class="k">علت استاندارد / ۶M</div><div class="v">${esc(r.causeStd||"—")} ${r.m6&&r.m6!=="نامشخص"?`· <span class="badge violet">${esc(r.m6)}</span>`:""}</div>
     <div class="k">شماره کلیم / کارت نارنجی</div><div class="v">${esc(r.claimNo||"—")} · ${esc(r.orangeCard||"—")}</div>
     <div class="k">تعداد کلیم شماره فنی</div><div class="v">${fmt(r.claims)} (پذیرفته‌شده: ${fmt(r.claimsAccepted)})</div>
@@ -1497,6 +1506,11 @@ function initFilters(){
   $("#review-search").addEventListener("input",e=>{state.reviewQ=e.target.value;state.page=1;renderReviews(applyFilters());});
   $("#review-export").addEventListener("click",exportReviewCsv);
   $("#defect-search").addEventListener("input",e=>{state.defectQ=e.target.value;renderDefectsTab(applyFilters());});
+  $$("#defect-cat button").forEach(btn=>btn.addEventListener("click",()=>{
+    state.defectCat=btn.dataset.cat;
+    $$("#defect-cat button").forEach(b=>b.classList.toggle("active",b===btn));
+    renderDefectsTab(applyFilters());
+  }));
   $("#defect-export").addEventListener("click",exportDefectCsv);
   $("#form-search").addEventListener("input",e=>{state.formQ=e.target.value;state.page=1;renderFormsTab(applyFilters());});
   $("#form-scope").addEventListener("change",e=>{state.formScope=e.target.value;state.page=1;renderFormsTab(applyFilters());});
@@ -1555,7 +1569,7 @@ function toCsv(rows){
     ["قطعات معیوب","qty"],["نمره منفی","score"],["گرید","grade"],["وضعیت","status"],["نیاز به بازبینی","review"],
     ["وضعیت اقدام کوتاه مدت","stAction"],["وضعیت اقدام میان مدت","mtAction"],
     ["آنالیز علت ایراد","cause"],["شرح اقدام اصلاحی","action"],["منشاء ایراد","origin"],
-    ["برنچ","branch"],["ایراد مشتری","defect"],["تکرار ایراد در محصول","defectRepeat"],["علت استاندارد","causeStd"],["گروه ۶M","m6"],
+    ["برنچ","branch"],["ایراد مشتری","defect"],["دسته‌بندی ایراد","defectCat"],["گروه ایراد","defectGroup"],["تکرار ایراد در محصول","defectRepeat"],["علت استاندارد","causeStd"],["گروه ۶M","m6"],
     ["شماره کلیم","claimNo"],["شماره کارت نارنجی","orangeCard"],["شماره فرم 8D","form8d"],["وضعیت فرم 8D","formStatus"],["دارای برگه بررسی","hasReview"]
   ];
   const head=cols.map(c=>c[0]).join(",");

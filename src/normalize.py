@@ -50,6 +50,25 @@ def normalize(value: object) -> str:
     return text.strip()
 
 
+def normalize_keep_punctuation(value: object) -> str:
+    """مثل normalize اما علائم جمله (پرانتز، ویرگول، نقطه) را حفظ می‌کند.
+
+    برای استخراج عبارت از متن آزاد لازم است؛ چون پایان جمله/عبارت با ویرگول و
+    پرانتز مشخص می‌شود.
+    """
+    if value is None:
+        return ""
+    text = str(value)
+    if text.strip().lower() in {"nan", "none", "null"}:
+        return ""
+    text = text.translate(_DIGITS).translate(_CHARS)
+    text = _IGNORED.sub(" ", text)
+    text = text.lower()
+    text = _PUNCT.sub(lambda match: f" {match.group(0)} ", text)
+    text = _SPACES.sub(" ", text)
+    return text.strip()
+
+
 def squash(value: object) -> str:
     """نسخهٔ بدون فاصلهٔ متن؛ برای تطبیق کلیدواژه‌هایی که با فاصله شکسته شده‌اند."""
     return normalize(value).replace(" ", "")

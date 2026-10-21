@@ -4,6 +4,7 @@
     python build_report.py            # ساخت گزارش
     python build_report.py --check    # فقط بررسی پیش‌نیازها و فایل‌های ورودی
     python build_report.py --pause    # در پایان منتظر زدن Enter می‌ماند
+    python build_report.py --defect-template   # ساخت فایل نمونهٔ اصلاح متن ایرادها
 
 خروجی‌ها در پوشهٔ output/ ساخته می‌شوند و گزارش کامل در output/build.log ثبت می‌شود.
 """
@@ -28,6 +29,7 @@ LISTDATA_FILE = ROOT / "ListData - 2026-10-21T094225.228.xlsx"
 CATALOG_FILE = ROOT / "گروه بندی محصولات.xlsx"
 REVIEW_FILE = ROOT / "C_Plus_405(20).xlsx"
 OVERRIDES_FILE = ROOT / "اصلاحات گروه‌بندی.xlsx"
+DEFECT_OVERRIDES_FILE = ROOT / "اصلاح ایرادها.xlsx"
 EIGHT_D_TEMPLATE = ROOT / "QA-DA-02-C.docx"
 WARNINGS_SHEET = "گزارش اخطار کيفي"
 
@@ -172,13 +174,19 @@ def main() -> int:
     from src import eight_d_store
     from src.aggregate import tech_table
     from src.catalog import add_branch, load_catalog
-    from src.defects import add_defect_fields
+    from src.defects import add_defect_fields, load_defect_overrides, make_defect_template
     from src.mapper import ProductMapper, enrich_warnings, product_table
     from src.report_8d import build_8d_document, build_official_form
     from src.report_excel import build_excel
     from src.report_html import build_html
     from src.overrides import apply_overrides, load_overrides
     from src.review import attach_review, eight_d_rows, grouping_checks, load_claims, load_review
+
+    if "--defect-template" in sys.argv:
+        path = make_defect_template(DEFECT_OVERRIDES_FILE)
+        log(f"فایل نمونه ساخته شد: {path.relative_to(ROOT)}")
+        log("سریال اخطار و متن درست را در آن بنویسید و دوباره گزارش را بسازید.")
+        return 0
 
     log("۱) خواندن فایل‌های ورودی…")
     warnings = pd.read_excel(WARNINGS_FILE, sheet_name=WARNINGS_SHEET)
@@ -212,10 +220,18 @@ def main() -> int:
     branch_counts = enriched["برنچ"].value_counts().to_dict()
     log("   برنچ: " + " | ".join(f"{k} {v:,}" for k, v in branch_counts.items()))
 
-    # یکسان‌سازی ایراد مشتری و علت‌های بررسی
-    enriched = add_defect_fields(enriched)
+    # توصیف ایراد مشتری، دسته‌بندی دوگانه و یکسان‌سازی علت‌های بررسی
+    defect_overrides = {}
+    if DEFECT_OVERRIDES_FILE.exists():
+        defect_overrides = load_defect_overrides(DEFECT_OVERRIDES_FILE)
+        log(f"   اصلاح دستی متن ایراد: {len(defect_overrides):,} سریال")
+    else:
+        log("   فایل «اصلاح ایرادها.xlsx» نیست (اختیاری).")
+    enriched = add_defect_fields(enriched, defect_overrides)
+    categories = enriched["دسته‌بندی ایراد"].value_counts().to_dict()
     log(
         f"   ایراد مشتری یکتا: {enriched['ایراد مشتری'].nunique():,} | "
+        f"عملکردی/ظاهری: {categories.get('عملکردی', 0):,}/{categories.get('ظاهری', 0):,} | "
         f"علت استاندارد یکتا: {enriched['علت استاندارد'].nunique():,}"
     )
 

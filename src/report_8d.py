@@ -39,6 +39,8 @@ class EightDContext:
     supplier: str
     location: str
     error: str
+    defect: str
+    defect_category: str
     cause: str
     action: str
     origin: str
@@ -82,6 +84,8 @@ def _context(row: pd.Series, entry: dict | None = None) -> EightDContext:
         supplier=_text(row.get("تامین‌کننده (بررسی)")),
         location=_text(row.get("محل صدور")),
         error=_text(row.get("شرح خطا")),
+        defect=_text(row.get("ایراد مشتری")),
+        defect_category=_text(row.get("دسته‌بندی ایراد")),
         cause=_text(row.get("آنالیز علت ایراد")),
         action=_text(row.get("شرح اقدام اصلاحی")),
         origin=_text(row.get("منشاء ایراد")),
@@ -168,7 +172,7 @@ def _fill(template_path: Path, context: EightDContext, index: int):
     # تعریف مسئله (5W)
     describe = tables[2]
     _append(describe.rows[0].cells[2], context.location, prefix=" ← ")
-    _append(describe.rows[4].cells[2], " | ".join(x for x in (context.title, context.error) if x), prefix=" ← ")
+    _append(describe.rows[4].cells[2], " | ".join(x for x in (context.title, context.defect or context.error) if x), prefix=" ← ")
     _append(describe.rows[6].cells[2], context.location, prefix=" ← ")
     _append(describe.rows[8].cells[2], context.date, prefix=" ← ")
 
@@ -264,6 +268,7 @@ def _compact_form(doc, context: EightDContext, index: int) -> None:
         x
         for x in (
             f"شرح قطعه: {context.title}" if context.title else "",
+            f"ایراد مشتری: {context.defect}" + (f" ({context.defect_category})" if context.defect_category else "") if context.defect else "",
             f"شرح خطا: {context.error}" if context.error else "",
             f"محل صدور / اعلام‌کننده: {context.location}" if context.location else "",
             f"تاریخ وقوع: {context.date}" if context.date else "",
