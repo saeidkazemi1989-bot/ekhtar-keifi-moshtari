@@ -186,15 +186,18 @@ def eight_d_number(serial: object, year: object) -> str:
     return f"8D-{year_text}-{serial}"
 
 
-def eight_d_rows(enriched: pd.DataFrame, only_open: bool = False) -> pd.DataFrame:
-    """ردیف‌هایی که باید برایشان فرم 8D پر شود.
+def eight_d_rows(enriched: pd.DataFrame, only_open: bool = False, scope: str = "working") -> pd.DataFrame:
+    """ردیف‌هایی که برایشان فرم 8D ساخته می‌شود.
 
-    پیش‌فرض: هر اخطاری که برگهٔ بررسی دارد یا هنوز خاتمه نیافته است.
+    scope="working" (پیش‌فرض): اخطارهای دارای برگهٔ بررسی یا خاتمه‌نیافته.
+    scope="all": همهٔ اخطارها (فرم برای هر اخطار).
     """
     frame = enriched.copy()
     has_review = frame["دارای برگه بررسی"] == "بله"
     is_open = frame["وضعیت اخطار"] != "خاتمه يافته"
     mask = has_review | is_open
+    if scope == "all":
+        mask = frame.index == frame.index
     if only_open:
         mask = is_open
     with_form = frame[mask].copy()

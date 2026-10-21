@@ -37,6 +37,7 @@ status=$?
 echo
 if [ $status -eq 0 ]; then
   echo "پایان موفق. فایل‌ها در پوشهٔ output/ هستند."
+  echo "برای تکمیل و ذخیرهٔ فرم‌های 8D داخل داشبورد: bash serve.sh"
 else
   echo "ساخت گزارش با خطا تمام شد (کد $status). شرح کامل: output/build.log"
 fi

@@ -76,6 +76,17 @@ def _clean(value: object) -> str:
     return "" if text.lower() in {"nan", "none"} else text
 
 
+# خانواده‌های خارج از دامنه‌ای که به برنچ پلیمر (POL) تعلق دارند
+POL_FAMILIES = {
+    "خارج از دامنه - داشبورد",
+    "خارج از دامنه - بدنه/درب/سپر",
+    "خارج از دامنه - صندلی/تزئینات",
+}
+
+BRANCH_UNKNOWN = "نامشخص"
+BRANCH_POL = "POL"
+
+
 def canonical_family(family: str) -> str:
     name = " ".join(str(family).split())
     return FAMILY_ALIASES.get(name, name)
@@ -144,3 +155,41 @@ def load_catalog(path: str | Path) -> Catalog:
         families=families,
         groups=groups,
     )
+
+
+def add_branch(frame, catalog: "Catalog"):
+    """ستون‌های «برنچ» و «منبع برنچ» را به دادهٔ اخطارها اضافه می‌کند.
+
+    اولویت: کد محصول راهکاران ← نام محصول ← استنباط POL از خانواده.
+    """
+    by_code: dict[str, str] = {}
+    by_title: dict[str, str] = {}
+    for item in catalog.products:
+        if item.branch:
+            by_code.setdefault(item.code_raw, item.branch)
+            by_title.setdefault(normalize(item.product), item.branch)
+
+    branches: list[str] = []
+    sources: list[str] = []
+    for _, row in frame.iterrows():
+        code = str(row.get("کد گروه محصول") or "").strip()
+        if code.endswith(".0"):
+            code = code[:-2]
+        title = normalize(str(row.get("نام محصول راهکاران") or ""))
+        family = str(row.get("خانواده محصول") or "").strip()
+        branch = by_code.get(code) or (by_title.get(title) if title else None)
+        if branch:
+            branches.append(branch)
+            sources.append("فایل گروه‌بندی")
+            continue
+        if family in POL_FAMILIES:
+            branches.append(BRANCH_POL)
+            sources.append("استنباط از خانواده")
+            continue
+        branches.append(BRANCH_UNKNOWN)
+        sources.append("نامشخص")
+
+    result = frame.copy()
+    result["برنچ"] = branches
+    result["منبع برنچ"] = sources
+    return result

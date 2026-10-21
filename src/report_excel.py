@@ -13,6 +13,7 @@ from openpyxl.utils import get_column_letter
 
 from .aggregate import (
     DEFECTIVE,
+    branch_summary,
     action_summary,
     SCORE,
     WARNING_COUNT,
@@ -31,6 +32,7 @@ from .aggregate import (
     top_parts,
     vehicle_summary,
 )
+from .defects import cause_summary, defect_summary, m6_summary, M6_UNKNOWN
 from .taxonomy import OUT_GROUP
 
 TITLE_COLOR = "0F3D3E"
@@ -233,6 +235,7 @@ def build_excel(
     eight_d: pd.DataFrame | None = None,
     grouping_checks: pd.DataFrame | None = None,
     unmatched_review: pd.DataFrame | None = None,
+    entries: dict[str, dict] | None = None,
 ) -> Path:
     source_names = source_names or {}
     output_path = Path(output_path)
@@ -275,6 +278,12 @@ def build_excel(
         ("روش تطبیق", "مسیر رسیدن به محصول: شماره فنی ← کد راهکاران ← کد گروه، یا نام محصول، یا شرح قطعه/منشا."),
         ("اطمینان", "قطعی (کد گروه)، بالا، متوسط، پایین (محصول خارج از کاتالوگ)."),
         ("نیاز به بازبینی", "ردیف‌هایی که تطبیق آن‌ها کم‌اطمینان، مبتنی بر نام، یا دارای شماره فنی پرابهام است."),
+        ("برنچ", "ELE / EMS / POL — از ستون «برنچ» فایل گروه‌بندی؛ برای اقلام خارج از فایل، POL برای خانواده‌های پلیمری (داشبورد، بدنه، تزئینات) و در بقیه موارد «نامشخص»."),
+        ("ایراد مشتری", "متن «شرح خطا» به یک عبارت استاندارد یکسان‌سازی شده است (مثلاً «عدم عملكرد» و «عملكرد اشتباه يا عدم كاركرد» ← «عدم عملکرد / عملکرد نادرست»)."),
+        ("تکرار ایراد در محصول", "تعداد اخطارهایی که همان ایراد استاندارد برای همان محصول ثبت شده است."),
+        ("علت استاندارد", "«آنالیز علت ایراد» برگهٔ بررسی به شکل «ایراد <نوع> قطعه <قطعه>» یکسان شده است؛ نمونه: «اتصالی پد ic micro» ← «ایراد اتصالی قطعه IC Micro»."),
+        ("گروه ۶M", "دسته‌بندی علت بر اساس ۶M: نیروی انسانی، تجهیزات، مواد، روش، اندازه‌گیری، محیط (یا نامشخص)."),
+        ("وضعیت فرم 8D", "فرم‌ها در داشبورد (python serve.py) تکمیل و در output/8d-forms.json ذخیره می‌شوند؛ ستون «درصد تکمیل» از ۷ بخش D1 تا D8 محاسبه می‌شود."),
         ("", ""),
         ("۴. نکات مهم", ""),
         ("پوشش", "فایل گروه‌بندی فقط ۱۰ گروه و حدود ۱۹۶ محصول دارد؛ بسیاری از محصولات نهایی راهکاران در آن نیستند و به‌صورت شاخهٔ (سایر) نمایش داده می‌شوند."),
@@ -348,6 +357,64 @@ def build_excel(
         ColorScaleRule(start_type="min", start_color="DCFCE7", end_type="max", end_color="FCA5A5"),
     )
     _bar_from_table(ws, gh, gl, 1, 2, f"A{gl + 3}", "تعداد اخطار به تفکیک گروه", width=24, height=10)
+
+    # ---------------------------------------------------------------- برنچ
+    branch = branch_summary(enriched)
+    if not branch.empty:
+        ws = wb.create_sheet("خلاصه برنچ")
+        ws.sheet_view.rightToLeft = True
+        row = _title(ws, 1, 8, "خلاصه بر اساس برنچ", "ELE / EMS / POL — برنچ از فایل گروه‌بندی و در صورت نبود، استنباط از خانواده")
+        columns = [c for c in ["برنچ", WARNING_COUNT, "سهم", DEFECTIVE, SCORE, "محصولات", "خانواده‌ها", "اخطار باز", "گرید A"] if c in branch.columns]
+        bh, bl = _write_table(ws, branch[columns], row, number_formats={"سهم": "0.0%"})
+        _pie_from_table(ws, bh, bl, 1, 2, f"A{bl + 3}", "سهم برنچ‌ها از اخطارها", width=18, height=10)
+
+    # ---------------------------------------------------------------- ایرادهای مشتری
+    defects_table = defect_summary(enriched)
+    if not defects_table.empty:
+        ws = wb.create_sheet("ایرادهای مشتری")
+        ws.sheet_view.rightToLeft = True
+        row = _title(
+            ws,
+            1,
+            9,
+            "ایرادهای مشتری (یکسان‌شده)",
+            "متن «شرح خطا» به یک عبارت استاندارد تبدیل شده تا تکرار همان ایراد در یک محصول قابل شمارش باشد",
+        )
+        dh, dl = _write_table(
+            ws,
+            defects_table[["ایراد مشتری (استاندارد)", "گروه ایراد", "تعداد اخطار", "سهم", "تعداد محصول", "تعداد خانواده", "تعداد قطعات معیوب", "اخطار باز", "آخرین تاریخ تایید"]],
+            row,
+            number_formats={"سهم": "0.0%"},
+        )
+        _bar_from_table(ws, dh, dl, 1, 3, f"K{dh}", "پرتکرارترین ایرادهای مشتری", width=24, height=12)
+
+    # ---------------------------------------------------------------- علت و ۶M
+    causes_table = cause_summary(enriched)
+    m6_table = m6_summary(enriched)
+    if not causes_table.empty or not m6_table.empty:
+        ws = wb.create_sheet("علت و ۶M")
+        ws.sheet_view.rightToLeft = True
+        row = _title(
+            ws,
+            1,
+            8,
+            "علت‌های استاندارد و گروه ۶M",
+            "«آنالیز علت ایراد» برگه‌های بررسی یکسان‌سازی شده است؛ نمونه: «اتصالی پد ic micro» ← «ایراد اتصالی قطعه IC Micro» / ۶M: تجهیزات",
+        )
+        next_row = row
+        if not m6_table.empty:
+            mh, ml = _write_table(ws, m6_table, next_row, "گروه ۶M", number_formats={"سهم": "0.0%"})
+            _pie_from_table(ws, mh, ml, 1, 2, f"D{mh}", "توزیع ۶M", width=16, height=9)
+            next_row = ml + 4
+        if not causes_table.empty:
+            _write_table(
+                ws,
+                causes_table,
+                next_row,
+                "علت‌های استاندارد",
+                subtitle="بر اساس برگه‌های بررسی متصل‌شده",
+                widths={"علت استاندارد": 44},
+            )
 
     # ---------------------------------------------------------------- خانواده
     ws = wb.create_sheet("خلاصه خانواده")
@@ -493,17 +560,19 @@ def build_excel(
     # ---------------------------------------------------------------- فرم 8D
     ws = wb.create_sheet("فرم 8D")
     ws.sheet_view.rightToLeft = True
-    row = _title(ws, 1, 11, "وضعیت فرم‌های 8D", "برای هر اخطار بررسی‌شده یا باز یک فرم 8D با شماره 8D-سال-سریال ساخته شده است")
+    row = _title(ws, 1, 14, "وضعیت فرم‌های 8D", "یک فرم برای هر اخطار با شماره 8D-سال-سریال؛ فرم‌ها در داشبورد تکمیل و ذخیره می‌شوند (python serve.py)")
     if eight_d is not None and not eight_d.empty:
         form_table = eight_d.copy()
-        form_table["شماره فرم 8D"] = [
-            f"8D-{int(y) if pd.notna(y) else 'XXXX'}-{int(s)}"
-            for s, y in zip(form_table["سریال اخطار"], form_table["سال"])
-        ]
-        form_table["وضعیت فرم"] = [
-            "آمادهٔ تایید" if (r["دارای برگه بررسی"] == "بله" and str(r["آنالیز علت ایراد"]).strip()) else "در انتظار تکمیل"
-            for _, r in form_table.iterrows()
-        ]
+        if "شماره فرم 8D" not in form_table.columns:
+            form_table["شماره فرم 8D"] = [
+                f"8D-{int(y) if pd.notna(y) else 'XXXX'}-{int(s)}"
+                for s, y in zip(form_table["سریال اخطار"], form_table["سال"])
+            ]
+        if "وضعیت فرم" not in form_table.columns:
+            form_table["وضعیت فرم"] = [
+                "آمادهٔ تایید" if (r["دارای برگه بررسی"] == "بله" and str(r["آنالیز علت ایراد"]).strip()) else "در انتظار تکمیل"
+                for _, r in form_table.iterrows()
+            ]
         cols = [
             "شماره فرم 8D",
             "سریال اخطار",
@@ -512,21 +581,36 @@ def build_excel(
             "شرح قطعه",
             "محصول",
             "وضعیت اخطار",
+            "مسئول پیگیری",
+            "تاریخ تکمیل",
+            "درصد تکمیل",
+            "D4 — علت ریشه‌ای",
+            "D5 — اقدام اصلاحی دائم",
+            "وضعیت فرم",
+            "در فایل ورد",
+            "آخرین به‌روزرسانی",
             "دارای برگه بررسی",
             "آنالیز علت ایراد",
-            "شرح اقدام اصلاحی",
             "منشاء ایراد",
-            "وضعیت فرم",
         ]
         cols = [c for c in cols if c in form_table.columns]
         fh, fl = _write_table(ws, form_table[cols], row)
         ws.column_dimensions["I"].width = 50
         ws.column_dimensions["J"].width = 40
-        from openpyxl.formatting.rule import CellIsRule
+        for name in ("مسئول پیگیری", "D4 — علت ریشه‌ای", "D5 — اقدام اصلاحی دائم"):
+            if name in cols:
+                ws.column_dimensions[get_column_letter(cols.index(name) + 1)].width = 38 if "D" in name else 18
+        from openpyxl.formatting.rule import FormulaRule
 
+        status_col = cols.index("وضعیت فرم") + 1
+        letter = get_column_letter(status_col)
+        first = f"${letter}{fh + 1}"
         ws.conditional_formatting.add(
-            f"L{fh + 1}:L{fl}",
-            CellIsRule(operator="equal", formula=['"آمادهٔ تایید"'], fill=PatternFill("solid", fgColor="DCFCE7")),
+            f"{letter}{fh + 1}:{letter}{fl}",
+            FormulaRule(
+                formula=[f'OR({first}="آمادهٔ تایید",{first}="آماده تأیید",{first}="بسته شده")'],
+                fill=PatternFill("solid", fgColor="DCFCE7"),
+            ),
         )
     else:
         ws.cell(row=row, column=1, value="فرم 8D ساخته نشده است.")

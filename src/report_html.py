@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from .eight_d_store import FIELDS as FORM_FIELDS
+from .eight_d_store import STATUS_OPTIONS, percent as form_percent, status_of as form_status
 from .aggregate import (
     family_summary,
     group_summary,
@@ -52,7 +54,9 @@ def _payload(
     source_names: dict[str, str],
     checks: pd.DataFrame | None = None,
     unmatched: pd.DataFrame | None = None,
+    entries: dict[str, dict] | None = None,
 ) -> dict:
+    entries = entries or {}
     records: list[dict] = []
     for _, row in enriched.iterrows():
         year = row.get("سال")
@@ -103,8 +107,9 @@ def _payload(
                 "hasReview": row.get("دارای برگه بررسی") == "بله",
                 "form8d": (
                     f"8D-{int(year) if pd.notna(year) else 'XXXX'}-{int(row['سریال اخطار'])}"
-                    if row["دارای برگه بررسی"] == "بله" or row["وضعیت اخطار"] != "خاتمه يافته"
-                    else "—"
+                ),
+                "inDocx": bool(
+                    row["دارای برگه بررسی"] == "بله" or row["وضعیت اخطار"] != "خاتمه يافته"
                 ),
                 "type": _clean_text(row["نوع ایراد"]),
                 "location": _clean_text(row["محل صدور"]),
@@ -114,6 +119,19 @@ def _payload(
                 "review": row["نیاز به بازبینی"] == "بله",
                 "mismatch": row["مغایرت خودرو"] == "بله",
                 "candidates": candidates,
+                "branch": _clean_text(row.get("برنچ", "")),
+                "branchSource": _clean_text(row.get("منبع برنچ", "")),
+                "defect": _clean_text(row.get("ایراد مشتری", "")),
+                "defectGroup": _clean_text(row.get("گروه ایراد مشتری", "")),
+                "defectRepeat": int(row.get("تکرار ایراد در محصول", 0) or 0),
+                "defectRepeatTech": int(row.get("تکرار ایراد در قطعه", 0) or 0),
+                "causeStd": _clean_text(row.get("علت استاندارد", "")),
+                "causeGroup": _clean_text(row.get("گروه علت", "")),
+                "m6": _clean_text(row.get("گروه ۶M", "")),
+                "causeRepeat": int(row.get("تکرار علت در محصول", 0) or 0),
+                "form": entries.get(str(row["سریال اخطار"]), {}),
+                "formStatus": form_status(entries.get(str(row["سریال اخطار"]))),
+                "formPercent": form_percent(entries.get(str(row["سریال اخطار"]))),
             }
         )
 
@@ -154,6 +172,20 @@ def _payload(
             if unmatched is not None and not unmatched.empty
             else []
         ),
+        "formFields": FORM_FIELDS,
+        "formStatuses": list(STATUS_OPTIONS),
+        "eightD": entries,
+        "eightDStats": {
+            "total": int(
+                (
+                    (enriched["دارای برگه بررسی"] == "بله")
+                    | (enriched["وضعیت اخطار"] != "خاتمه يافته")
+                ).sum()
+            ) if "دارای برگه بررسی" in enriched.columns else 0,
+            "saved": len(entries),
+            "done": sum(1 for e in entries.values() if form_percent(e) >= 100),
+            "doing": sum(1 for e in entries.values() if 0 < form_percent(e) < 100),
+        },
     }
 
 
@@ -164,6 +196,7 @@ def build_html(
     data_file: str | Path | None = None,
     checks: pd.DataFrame | None = None,
     unmatched: pd.DataFrame | None = None,
+    entries: dict[str, dict] | None = None,
 ) -> Path:
     """ساخت داشبورد.
 
@@ -174,7 +207,7 @@ def build_html(
     source_names = source_names or {}
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    data = _payload(enriched, source_names, checks, unmatched)
+    data = _payload(enriched, source_names, checks, unmatched, entries)
     payload = json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
 
     if data_file is None:
@@ -332,6 +365,19 @@ tbody tr:last-child td{border-bottom:0}
 .mini .k{font-size:10.5px;color:var(--muted);font-weight:600}
 .mini .v{font-size:18px;font-weight:800;margin-top:2px}
 .quality-note{background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:12px;padding:10px 12px;font-size:11.5px;margin-top:10px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;margin-top:6px}
+.form-grid .field{display:flex;flex-direction:column;gap:4px}
+.form-grid .field.full{grid-column:1/-1}
+.form-grid label{font-size:11px;font-weight:700;color:#334155}
+.form-grid input,.form-grid textarea,.form-grid select{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:12px;background:#f8fafc}
+.form-grid textarea{min-height:52px;resize:vertical}
+.form-actions{display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}
+.form-state{font-size:11px;color:var(--muted)}
+.store-badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;padding:4px 10px;border-radius:99px}
+.store-badge.server{background:#ccfbf1;color:#0f766e}
+.store-badge.local{background:#fef3c7;color:#92400e}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:10px 18px;border-radius:12px;font-size:12.5px;z-index:200;opacity:0;transition:opacity .25s;pointer-events:none}
+.toast.show{opacity:1}
 .modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:grid;place-items:center;z-index:100;padding:18px}
 .modal.hidden{display:none}
 .modal-box{background:#fff;border-radius:18px;max-width:820px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 30px 80px rgba(0,0,0,.3)}
@@ -374,12 +420,15 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
   <button class="tab" data-tab="products">محصولات</button>
   <button class="tab" data-tab="warnings">فهرست اخطارها</button>
   <button class="tab" data-tab="reviews">بررسی اخطارها</button>
+  <button class="tab" data-tab="defects">ایرادهای تکراری</button>
+  <button class="tab" data-tab="forms8d">فرم‌های 8D</button>
   <button class="tab" data-tab="quality">کیفیت تطبیق</button>
 </nav>
 <div class="filters">
   <div class="field"><label>گروه محصول</label><select id="f-group"></select></div>
   <div class="field"><label>خانواده محصول</label><select id="f-family"></select></div>
   <div class="field"><label>محصول</label><select id="f-product"></select></div>
+  <div class="field"><label>برنچ</label><select id="f-branch"></select></div>
   <div class="field"><label>گروه خودرو</label><select id="f-car"></select></div>
   <div class="field"><label>گرید ایراد</label><select id="f-grade"></select></div>
   <div class="field"><label>سال</label><select id="f-year"></select></div>
@@ -482,6 +531,53 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
     </div>
   </section>
 
+  <section class="tab-panel" id="tab-defects">
+    <div class="kpi-grid" id="defect-kpis" style="grid-template-columns:repeat(4,1fr)"></div>
+    <div class="grid-2">
+      <div class="card"><h3>ایرادهای پرتکرار مشتری <span class="hint">پس از یکسان‌سازی</span></h3><div class="bars" id="defect-bars"></div></div>
+      <div class="card"><h3>گروه ۶M علت‌ها <span class="hint">نیروی انسانی / تجهیزات / مواد / روش / اندازه‌گیری / محیط</span></h3><div class="bars" id="m6-bars"></div></div>
+    </div>
+    <div class="card">
+      <div class="toolbar">
+        <h3 style="margin:0">ایرادهای یکسان‌شده <span class="hint" id="defect-count"></span></h3>
+        <div class="right">
+          <div class="search-mini"><input id="defect-search" placeholder="جستجو در ایراد / گروه"></div>
+          <button class="btn" id="defect-export">خروجی CSV</button>
+        </div>
+      </div>
+      <div class="table-wrap"><table id="defects-table"></table></div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h3>علت‌های استاندارد <span class="hint">یکسان‌سازی «آنالیز علت ایراد» برگه‌های بررسی</span></h3>
+      <div class="table-wrap"><table id="causes-table"></table></div>
+    </div>
+  </section>
+
+  <section class="tab-panel" id="tab-forms8d">
+    <div class="kpi-grid" id="form-kpis" style="grid-template-columns:repeat(4,1fr)"></div>
+    <div class="card">
+      <div class="toolbar">
+        <h3 style="margin:0">فرم‌های 8D <span class="hint" id="form-count"></span></h3>
+        <div class="right">
+          <span class="store-badge local" id="store-badge">حالت مرورگر</span>
+          <div class="search-mini"><input id="form-search" placeholder="جستجو در سریال / قطعه / مسئول"></div>
+          <select id="form-scope" class="btn" style="padding:8px 10px">
+            <option value="working">باز یا دارای برگه بررسی</option>
+            <option value="open">فقط اخطارهای باز</option>
+            <option value="review">فقط دارای برگه بررسی</option>
+            <option value="all">همهٔ اخطارها</option>
+          </select>
+          <select id="form-status-filter" class="btn" style="padding:8px 10px"></select>
+          <button class="btn" id="form-export">خروجی CSV</button>
+          <button class="btn" id="form-export-json">پشتیبان JSON</button>
+        </div>
+      </div>
+      <div class="table-wrap"><table id="forms-table"></table></div>
+      <div class="pager" id="forms-pager"></div>
+      <div class="quality-note">فرم‌ها را با کلیک روی هر ردیف باز کنید، بخش‌های D1 تا D8 را پر کنید و «ذخیره» بزنید. برای ذخیرهٔ دائمی روی سرور، برنامه را با <b>python serve.py</b> اجرا کنید؛ در حالت فایل، داده‌ها در مرورگر همان رایانه نگه داشته می‌شوند و با «پشتیبان JSON» قابل انتقال‌اند.</div>
+    </div>
+  </section>
+
   <section class="tab-panel" id="tab-quality">
     <div class="kpi-grid" id="quality-kpis" style="grid-template-columns:repeat(4,1fr)"></div>
     <div class="grid-2">
@@ -555,14 +651,15 @@ const reviewBadge = r => r.review ? '<span class="badge red">بازبینی</spa
 const catalogBadge = r => r.inCatalog ? '<span class="badge green">کاتالوگ</span>' : (r.inScope ? '<span class="badge slate">سایر</span>' : '<span class="badge slate">خارج</span>');
 
 const state = {group:"",family:"",product:"",car:"",grade:"",status:"",year:"",from:"",to:"",q:"",tab:"overview",
-  review:"",productQ:"",warningQ:"",reviewQ:"",page:1,pageSize:25,productSort:{key:"warnings",dir:-1},trendMode:"year"};
+  review:"",branch:"",defect:"",productQ:"",warningQ:"",reviewQ:"",defectQ:"",formQ:"",formStatus:"",formScope:"working",
+  page:1,pageSize:25,productSort:{key:"warnings",dir:-1},trendMode:"year"};
 let currentProducts = [];
 let currentWarnings = [];
 let currentReviews = [];
 
 function monthKey(r){ return r.monthKey || 0; }
 function haystack(r){
-  return [r.part,r.origin,r.tech,r.code,r.rahkaran,r.product,r.family,r.group,r.car,r.id,r.error,r.cause,r.action].join(" ").toLowerCase();
+  return [r.part,r.origin,r.tech,r.code,r.rahkaran,r.product,r.family,r.group,r.branch,r.car,r.id,r.error,r.cause,r.causeStd,r.m6,r.defect,r.action].join(" ").toLowerCase();
 }
 function applyFilters(){
   const q = state.q.trim().toLowerCase();
@@ -570,6 +667,8 @@ function applyFilters(){
     if(state.group && r.group!==state.group) return false;
     if(state.family && r.family!==state.family) return false;
     if(state.product && r.product!==state.product) return false;
+    if(state.branch && r.branch!==state.branch) return false;
+    if(state.defect && r.defect!==state.defect) return false;
     if(state.car && r.car!==state.car) return false;
     if(state.grade && r.grade!==state.grade) return false;
     if(state.status==="open" && !r.open) return false;
@@ -917,13 +1016,15 @@ function renderWarningsTab(rows){
   const page=items.slice(start,start+state.pageSize);
   $("#warnings-count").textContent=`${fmt(total)} ردیف · نمایش ${fmt(page.length)} ردیف`;
   $("#warnings-table").innerHTML=`<thead><tr>
-    <th>سریال</th><th>تاریخ</th><th>خودرو</th><th>شرح قطعه</th><th>شماره فنی</th><th>محصول راهکاران</th><th>خانواده</th><th>محصول</th><th>گروه</th><th>گرید</th><th>وضعیت</th><th>قطعات</th><th>نمره</th><th>تطبیق</th></tr></thead>
+    <th>سریال</th><th>تاریخ</th><th>خودرو</th><th>شرح قطعه</th><th>ایراد مشتری</th><th>شماره فنی</th><th>محصول راهکاران</th><th>خانواده</th><th>محصول</th><th>گروه</th><th>برنچ</th><th>گرید</th><th>وضعیت</th><th>قطعات</th><th>نمره</th><th>تطبیق</th></tr></thead>
     <tbody>${page.map(r=>`<tr class="clickable" data-id="${r.id}">
       <td class="num">${esc(r.id)}</td><td class="muted tiny">${esc(faDigits(r.date))}</td><td class="tiny">${esc(r.car)}</td>
       <td title="${esc(r.part)}">${esc(r.part.length>46?r.part.slice(0,46)+"…":r.part)}</td>
+      <td class="tiny" title="${esc(r.defect)}">${esc(r.defect||"—")} ${r.defectRepeat>1?`<span class="badge red">×${fmt(r.defectRepeat)}</span>`:""}</td>
       <td class="tiny">${esc(r.tech||"—")}</td><td class="tiny" title="${esc(r.rahkaran)}">${esc(r.rahkaran.length>34?r.rahkaran.slice(0,34)+"…":r.rahkaran||"—")}</td>
       <td class="tiny">${esc(r.family)}</td><td class="tiny">${esc(r.product)}</td>
       <td class="tiny"><span class="group-pill"><span class="dot" style="background:${color(r.group)}"></span>${esc(gLabel(r.group))}</span></td>
+      <td class="tiny">${esc(r.branch||"—")}</td>
       <td class="num">${esc(r.grade)}</td><td>${statusBadge(r)}</td><td class="num">${fmt(r.qty)}</td><td class="num">${fmt(r.score)}</td>
       <td>${confBadge(r.confidence)} ${reviewBadge(r)}</td></tr>`).join("")}</tbody>`;
   $$("#warnings-table tbody tr").forEach(tr=>tr.addEventListener("click",()=>openWarning(Number(tr.dataset.id))));
@@ -976,6 +1077,289 @@ function renderPager(el,total,page,size,onChange){
   $$("button",el).forEach(b=>b.addEventListener("click",()=>{ if(!b.disabled) onChange(Number(b.dataset.p)); }));
 }
 
+
+/* ------------------------------------------------------------ ایرادهای یکسان‌شده */
+function defectRows(rows){
+  const map=new Map();
+  rows.forEach(r=>{
+    const key=r.defect||"نامشخص";
+    if(!map.has(key)) map.set(key,{name:key,group:r.defectGroup||"نامشخص",warnings:0,qty:0,products:new Set(),families:new Set(),open:0,maxRepeat:0});
+    const item=map.get(key);
+    item.warnings+=1; item.qty+=Number(r.qty||0); item.open+=r.open?1:0;
+    item.products.add(r.product); item.families.add(r.family);
+    item.maxRepeat=Math.max(item.maxRepeat,Number(r.defectRepeat||0));
+  });
+  return Array.from(map.values()).map(i=>({...i,products:i.products.size,families:i.families.size}))
+    .sort((a,b)=>b.warnings-a.warnings);
+}
+function renderDefectsTab(rows){
+  const items=defectRows(rows);
+  const unreviewed=rows.filter(r=>!r.hasReview).length;
+  const top=items[0];
+  const multi=rows.filter(r=>Number(r.defectRepeat||0)>1).length;
+  const cards=[
+    ["ایراد یکتا",fmt(items.length),`از ${fmt(rows.length)} اخطار`,""],
+    ["پرتکرارترین ایراد",top?esc(top.name):"—",top?`${fmt(top.warnings)} اخطار`:"","amber"],
+    ["اخطارهای تکراری",fmt(multi),"ایرادی که بیش از یک بار در همان محصول دیده شده","violet"],
+    ["بدون برگه بررسی",fmt(unreviewed),"علت ریشه‌ای ثبت نشده","rose"]
+  ];
+  $("#defect-kpis").innerHTML=cards.map(([l,v,s,c])=>`<div class="kpi ${c}"><div class="label">${l}</div><div class="value">${v}</div><div class="sub">${s}</div></div>`).join("");
+  renderBars($("#defect-bars"),items.slice(0,10),"warnings",()=>"#e11d48",i=>i.name);
+  const m6=groupAgg(rows.filter(r=>r.m6&&r.m6!=="نامشخص"),"m6").sort((a,b)=>b.warnings-a.warnings);
+  renderBars($("#m6-bars"),m6,"warnings",i=>i.name==="تجهیزات"?"#0f766e":"#d97706",i=>i.name);
+
+  const q=state.defectQ.trim().toLowerCase();
+  let list=items.filter(i=>!q || (i.name+" "+i.group).toLowerCase().includes(q));
+  $("#defect-count").textContent=`${fmt(list.length)} ایراد`;
+  const total=rows.length||1;
+  $("#defects-table").innerHTML=`<thead><tr><th>ایراد مشتری (استاندارد)</th><th>گروه</th><th>اخطار</th><th>سهم</th><th>محصول</th><th>خانواده</th><th>قطعات معیوب</th><th>بیشترین تکرار</th><th>باز</th><th></th></tr></thead>
+    <tbody>${list.map(i=>`<tr>
+      <td><b>${esc(i.name)}</b></td><td class="tiny">${esc(i.group)}</td>
+      <td class="num">${fmt(i.warnings)}</td><td class="num muted">${pct(i.warnings/total)}</td>
+      <td class="num">${fmt(i.products)}</td><td class="num">${fmt(i.families)}</td>
+      <td class="num">${fmt(i.qty)}</td><td class="num">${i.maxRepeat>1?`<span class="badge red">×${fmt(i.maxRepeat)}</span>`:fmt(1)}</td>
+      <td class="num">${fmt(i.open)}</td>
+      <td><button class="btn" data-defect="${esc(i.name)}" style="padding:5px 9px">اخطارها</button></td></tr>`).join("")}</tbody>`;
+  $$("#defects-table [data-defect]").forEach(btn=>btn.addEventListener("click",()=>{
+    state.defect=btn.dataset.defect; state.page=1; switchTab("warnings"); render();
+  }));
+
+  // علت‌های استاندارد
+  const causes=new Map();
+  rows.filter(r=>r.hasReview).forEach(r=>{
+    const key=r.causeStd||"ثبت نشده";
+    if(!causes.has(key)) causes.set(key,{name:key,group:r.causeGroup||"نامشخص",m6:r.m6||"نامشخص",warnings:0,products:new Set()});
+    const item=causes.get(key); item.warnings+=1; item.products.add(r.product);
+  });
+  const causeList=Array.from(causes.values()).map(i=>({...i,products:i.products.size})).sort((a,b)=>b.warnings-a.warnings).slice(0,40);
+  $("#causes-table").innerHTML=`<thead><tr><th>علت استاندارد</th><th>گروه علت</th><th>گروه ۶M</th><th>اخطار</th><th>محصول</th></tr></thead>
+    <tbody>${causeList.map(i=>`<tr><td><b>${esc(i.name)}</b></td><td class="tiny">${esc(i.group)}</td><td class="tiny">${esc(i.m6)}</td><td class="num">${fmt(i.warnings)}</td><td class="num">${fmt(i.products)}</td></tr>`).join("")}</tbody>`;
+}
+function exportDefectCsv(){
+  const rows=defectRows(applyFilters());
+  const head=["ایراد مشتری","گروه ایراد","تعداد اخطار","تعداد محصول","تعداد خانواده","قطعات معیوب","بیشترین تکرار","اخطار باز"];
+  const body=rows.map(i=>[i.name,i.group,i.warnings,i.products,i.families,i.qty,i.maxRepeat,i.open].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(","));
+  downloadCsv("\ufeff"+head.join(",")+"\n"+body.join("\n"),"ekhtar-defects.csv");
+}
+
+/* ------------------------------------------------------------ فرم‌های 8D */
+const FORM_CORE=["team","containment","root_cause","corrective","verification","prevention","lesson"];
+const formPercentOf=e=>e?Math.round(FORM_CORE.filter(k=>String(e[k]||"").trim()).length/FORM_CORE.length*100):0;
+function formStatusOf(e){
+  if(!e) return "شروع نشده";
+  if(String(e.status||"")==="بسته شده") return "بسته شده";
+  const p=formPercentOf(e);
+  if(p>=100) return "آماده تأیید";
+  if(p>0) return "در جریان";
+  return "شروع نشده";
+}
+const formBadge=s=>{
+  const cls=s==="بسته شده"?"green":s==="آماده تأیید"?"blue":s==="در جریان"?"amber":"slate";
+  return `<span class="badge ${cls}">${esc(s)}</span>`;
+};
+function formRows(rows){
+  const scope=state.formScope||"working";
+  return rows.filter(r=>{
+    if(!r.form8d || r.form8d==="—") return false;
+    if(scope==="open") return !!r.open;
+    if(scope==="review") return !!r.hasReview;
+    if(scope==="all") return true;
+    return r.open || r.hasReview;
+  });
+}
+const FORM_STORE={
+  mode:"local",
+  data:{},
+  async init(){
+    try{
+      const r=await fetch("api/8d",{cache:"no-store",headers:{"Accept":"application/json"}});
+      if(r.ok){
+        const payload=await r.json();
+        if(payload && payload.entries){
+          this.mode="server"; this.data=payload.entries; this.stats=payload.stats;
+          this.apply(); this.badge(); return;
+        }
+      }
+    }catch(e){}
+    this.mode="local";
+    try{ this.data=JSON.parse(localStorage.getItem("ekhtar8d")||"{}")||{}; }catch(e){ this.data={}; }
+    this.apply(); this.badge();
+  },
+  badge(){
+    const el=$("#store-badge"); if(!el) return;
+    if(this.mode==="server"){
+      el.className="store-badge server";
+      el.textContent="حالت ویرایش — ذخیره روی سرور";
+      el.title="داده‌ها در output/8d-forms.json ذخیره می‌شوند";
+    }else{
+      el.className="store-badge local";
+      el.textContent="حالت فایل — ذخیره در مرورگر";
+      el.title="برای ذخیرهٔ دائمی، python serve.py را اجرا کنید";
+    }
+  },
+  apply(){
+    Object.entries(this.data||{}).forEach(([k,v])=>{
+      const r=DATA.warnings.find(x=>String(x.id)===String(k));
+      if(r){ r.form=v; r.formStatus=formStatusOf(v); r.formPercent=formPercentOf(v); }
+    });
+  },
+  saveLocal(){
+    try{ localStorage.setItem("ekhtar8d",JSON.stringify(this.data)); return true; }catch(e){ return false; }
+  },
+  async save(serial,values,number){
+    const key=String(serial);
+    if(this.mode==="server"){
+      try{
+        const r=await fetch("api/8d",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({serial:key,values,number})});
+        const payload=await r.json();
+        if(!r.ok) return {ok:false,error:payload.error||"خطای سرور"};
+        this.data[key]=payload.entry; this.stats=payload.stats;
+        return {ok:true,entry:payload.entry};
+      }catch(e){ return {ok:false,error:"ارتباط با سرور قطع است"}; }
+    }
+    this.data[key]={...(this.data[key]||{}),...values,updated:new Date().toISOString().slice(0,16).replace("T"," ")};
+    const ok=this.saveLocal();
+    return ok?{ok:true,entry:this.data[key]}:{ok:false,error:"ذخیره در مرورگر ممکن نشد"};
+  }
+};
+function toast(message){
+  let el=$("#toast");
+  if(!el){ el=document.createElement("div"); el.id="toast"; el.className="toast"; document.body.appendChild(el); }
+  el.textContent=message; el.classList.add("show");
+  clearTimeout(el._timer); el._timer=setTimeout(()=>el.classList.remove("show"),2600);
+}
+
+function formEditorHtml(r){
+  const form=r.form||{};
+  const labels=DATA.formFields||{};
+  const skip=new Set(["owner","due"]);
+  const fields=Object.entries(labels).filter(([k])=>!skip.has(k));
+  const suggestions={
+    problem:[r.part?`شرح قطعه: ${r.part}`:"",r.error?`شرح خطا: ${r.error}`:"",r.car?`خودرو: ${r.car}`:""].filter(Boolean).join("\n"),
+    root_cause:[r.causeStd?`علت استاندارد: ${r.causeStd}`:"",r.cause?`آنالیز علت: ${r.cause}`:"",r.origin?`منشاء: ${r.origin}`:""].filter(Boolean).join("\n"),
+    containment:r.action||"",
+    corrective:r.action||""
+  };
+  const percent=formPercentOf(form);
+  return `<div style="margin-top:18px;border-top:1px solid #e2e8f0;padding-top:14px">
+    <div class="toolbar" style="margin-bottom:6px">
+      <h3 style="margin:0">فرم 8D — <span class="num">${esc(r.form8d||"—")}</span></h3>
+      <div class="right"><span id="form-chip">${formBadge(formStatusOf(form))}</span>
+        <span class="muted tiny" id="form-percent">${fmt(percent)}٪ تکمیل</span></div>
+    </div>
+    <div class="progress" style="margin-bottom:10px"><div class="fill" id="form-progress" style="width:${percent}%"></div></div>
+    <div class="form-grid">
+      <div class="field"><label>مسئول پیگیری</label><input data-f="owner" value="${esc(form.owner||"")}" placeholder="نام مسئول"></div>
+      <div class="field"><label>تاریخ تکمیل</label><input data-f="due" value="${esc(form.due||"")}" placeholder="۱۴۰۵/۰۸/۱۵"></div>
+      <div class="field"><label>وضعیت فرم</label><select data-f="status">${(DATA.formStatuses||[]).map(s=>`<option value="${esc(s)}" ${((form.status||"")===s)?"selected":""}>${esc(s)}</option>`).join("")}</select></div>
+      <div class="field"><label>&nbsp;</label><button class="btn" id="fill-suggest">پر کردن از داده‌های اخطار</button></div>
+      ${fields.map(([k,label])=>`<div class="field full"><label>${esc(label)}</label>
+        <textarea data-f="${k}" placeholder="${esc(suggestions[k]||"")}">${esc(form[k]||"")}</textarea></div>`).join("")}
+    </div>
+    <div class="form-actions">
+      <button class="btn primary" id="save-form">ذخیرهٔ فرم</button>
+      <button class="btn" id="reload-form">بازخوانی</button>
+      <span class="form-state" id="form-state">${FORM_STORE.mode==="server"?"ذخیره روی سرور فعال است":"ذخیره در حافظهٔ مرورگر"}</span>
+    </div>
+  </div>`;
+}
+function bindFormEditor(r){
+  const fill=$("#fill-suggest");
+  if(fill) fill.addEventListener("click",()=>{
+    const map={
+      problem:[r.part?`شرح قطعه: ${r.part}`:"",r.error?`شرح خطا: ${r.error}`:"",r.car?`خودرو: ${r.car}`:""].filter(Boolean).join("\n"),
+      root_cause:[r.causeStd?`علت استاندارد: ${r.causeStd}`:"",r.cause?`آنالیز علت: ${r.cause}`:"",r.origin?`منشاء: ${r.origin}`:""].filter(Boolean).join("\n"),
+      containment:r.action||"",
+      corrective:r.action||""
+    };
+    Object.entries(map).forEach(([k,v])=>{
+      const el=$(`[data-f="${k}"]`); if(el && !el.value.trim() && v) el.value=v;
+    });
+  });
+  const reload=$("#reload-form");
+  if(reload) reload.addEventListener("click",()=>{ openWarning(r.id); });
+  const save=$("#save-form");
+  if(save) save.addEventListener("click",async()=>{
+    const values={};
+    $$("[data-f]").forEach(el=>{ if(el.closest("#form8d-editor")) values[el.dataset.f]=el.value.trim(); });
+    save.disabled=true; save.textContent="در حال ذخیره…";
+    const result=await FORM_STORE.save(r.id,values,r.form8d);
+    save.disabled=false; save.textContent="ذخیرهٔ فرم";
+    if(result.ok){
+      r.form={...values};
+      r.formStatus=formStatusOf(values); r.formPercent=formPercentOf(values);
+      const stateEl=$("#form-state");
+      if(stateEl) stateEl.textContent="ذخیره شد ✓ "+new Date().toLocaleTimeString("fa-IR");
+      const chip=$("#form-chip"); if(chip) chip.innerHTML=formBadge(r.formStatus);
+      const pr=$("#form-percent"); if(pr) pr.textContent=`${fmt(r.formPercent)}٪ تکمیل`;
+      const bar=$("#form-progress"); if(bar) bar.style.width=`${r.formPercent}%`;
+      toast("فرم ذخیره شد");
+      renderFormsTab(applyFilters());
+    }else{
+      const stateEl=$("#form-state");
+      if(stateEl) stateEl.textContent="ذخیره نشد: "+result.error;
+      toast("ذخیره نشد: "+result.error);
+    }
+  });
+}
+function renderFormsTab(rows){
+  const items=formRows(rows).sort((a,b)=>
+    (Number(b.open)-Number(a.open)) || (Number(b.hasReview)-Number(a.hasReview)) ||
+    ((b.formPercent||0)-(a.formPercent||0)) || String(a.id).localeCompare(String(b.id)));
+  const done=items.filter(r=>r.formPercent>=100).length;
+  const doing=items.filter(r=>r.formPercent>0&&r.formPercent<100).length;
+  const cards=[
+    ["فرم‌های 8D",fmt(items.length),"هر اخطار بررسی‌شده یا باز یک فرم",""],
+    ["تکمیل‌شده",fmt(done),`${pct(items.length?done/items.length:0)} از فرم‌ها`,"blue"],
+    ["در جریان",fmt(doing),"ناقص، در حال تکمیل","amber"],
+    ["شروع نشده",fmt(items.length-done-doing),"بدون ورود اطلاعات","slate"]
+  ];
+  $("#form-kpis").innerHTML=cards.map(([l,v,s,c])=>`<div class="kpi ${c}"><div class="label">${l}</div><div class="value">${v}</div><div class="sub">${s}</div></div>`).join("");
+
+  const q=state.formQ.trim().toLowerCase();
+  let list=items;
+  if(q) list=list.filter(r=>[r.id,r.part,r.product,r.form8d,(r.form||{}).owner].join(" ").toLowerCase().includes(q));
+  if(state.formStatus) list=list.filter(r=>r.formStatus===state.formStatus);
+  $("#form-count").textContent=`${fmt(list.length)} فرم`;
+  const pages=Math.max(1,Math.ceil(list.length/state.pageSize));
+  if(state.page>pages) state.page=pages;
+  const start=(state.page-1)*state.pageSize;
+  const page=list.slice(start,start+state.pageSize);
+  $("#forms-table").innerHTML=`<thead><tr><th>شماره فرم</th><th>سریال</th><th>شرح قطعه</th><th>محصول</th><th>وضعیت اخطار</th><th>مسئول</th><th>تاریخ تکمیل</th><th>درصد</th><th>وضعیت فرم</th><th>آخرین ذخیره</th></tr></thead>
+    <tbody>${page.map(r=>`<tr class="clickable" data-id="${r.id}">
+      <td class="num tiny">${esc(r.form8d)}</td><td class="num">${esc(r.id)}</td>
+      <td class="tiny" title="${esc(r.part)}">${esc(r.part.length>38?r.part.slice(0,38)+"…":r.part)}</td>
+      <td class="tiny">${esc(r.product)}</td><td class="tiny">${statusBadge(r)}</td>
+      <td class="tiny">${esc((r.form||{}).owner||"—")}</td><td class="tiny">${esc(faDigits((r.form||{}).due||"—"))}</td>
+      <td style="min-width:90px"><div class="progress" title="${fmt(r.formPercent)}٪"><div class="fill" style="width:${r.formPercent}%"></div></div><span class="muted tiny">${fmt(r.formPercent)}٪</span></td>
+      <td>${formBadge(r.formStatus)}</td>
+      <td class="tiny muted">${esc(faDigits(String((r.form||{}).updated||"—").replace("T"," ").slice(0,16)))}</td></tr>`).join("")}</tbody>`;
+  $$("#forms-table tbody tr").forEach(tr=>tr.addEventListener("click",()=>openWarning(Number(tr.dataset.id))));
+  renderPager($("#forms-pager"),list.length,state.page,state.pageSize,p=>{state.page=p;renderFormsTab(applyFilters());});
+}
+function exportFormCsv(){
+  const rows=formRows(applyFilters());
+  const labels=DATA.formFields||{};
+  const head=["شماره فرم 8D","سریال اخطار","شرح قطعه","محصول","وضعیت اخطار",...Object.values(labels),"وضعیت فرم","درصد تکمیل","آخرین به‌روزرسانی"];
+  const body=rows.map(r=>{
+    const f=r.form||{};
+    return [r.form8d,r.id,r.part,r.product,r.status,...Object.keys(labels).map(k=>f[k]||""),r.formStatus,r.formPercent,f.updated||""]
+      .map(v=>`"${String(v==null?"":v).replace(/"/g,'""')}"`).join(",");
+  });
+  downloadCsv("\ufeff"+head.join(",")+"\n"+body.join("\n"),"ekhtar-8d-forms.csv");
+}
+function exportFormJson(){
+  const rows=formRows(applyFilters());
+  const payload={generated:new Date().toISOString(),mode:FORM_STORE.mode,entries:{}};
+  rows.forEach(r=>{ if(r.form && Object.keys(r.form).length) payload.entries[String(r.id)]={...(r.form),number:r.form8d}; });
+  const text=JSON.stringify(payload,null,1);
+  const blob=new Blob([text],{type:"application/json;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a"); a.href=url; a.download="ekhtar-8d-forms.json"; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),8000);
+  toast(`پشتیبان ${fmt(Object.keys(payload.entries).length)} فرم دانلود شد`);
+}
+
 function openWarning(id){
   const r=DATA.warnings.find(x=>x.id===id); if(!r) return;
   $("#modal-title").textContent=`اخطار ${r.id}`;
@@ -1000,14 +1384,19 @@ function openWarning(id){
     <div class="k">نوع ایراد / خطا</div><div class="v">${esc(r.type||"—")} · ${esc(r.error||"—")}</div>
     <div class="k">وضعیت اقدام</div><div class="v">${esc(stageName(r.status))} · کوتاه‌مدت: ${esc(r.stAction||"—")} · میان‌مدت: ${esc(r.mtAction||"—")}</div>
     <div class="k">شماره فرم 8D</div><div class="v"><b>${esc(r.form8d)}</b> ${r.hasReview?'<span class="badge green">برگه بررسی دارد</span>':'<span class="badge amber">بدون برگه بررسی</span>'}</div>
+    <div class="k">برنچ</div><div class="v">${esc(r.branch||"—")} ${r.branchSource?`<span class="muted tiny">(${esc(r.branchSource)})</span>`:""}</div>
+    <div class="k">ایراد مشتری</div><div class="v">${esc(r.defect||"—")} ${r.defectRepeat>1?`<span class="badge red">${fmt(r.defectRepeat)} بار در این محصول</span>`:""}</div>
+    <div class="k">علت استاندارد / ۶M</div><div class="v">${esc(r.causeStd||"—")} ${r.m6&&r.m6!=="نامشخص"?`· <span class="badge violet">${esc(r.m6)}</span>`:""}</div>
     <div class="k">شماره کلیم / کارت نارنجی</div><div class="v">${esc(r.claimNo||"—")} · ${esc(r.orangeCard||"—")}</div>
     <div class="k">تعداد کلیم شماره فنی</div><div class="v">${fmt(r.claims)} (پذیرفته‌شده: ${fmt(r.claimsAccepted)})</div>
   </div>
   ${(r.cause||r.action||r.origin)?`<div class="note-box"><b>آنالیز علت ایراد:</b> ${esc(r.cause||"—")}
 <b>شرح اقدام اصلاحی:</b> ${esc(r.action||"—")}
 <b>منشاء ایراد:</b> ${esc(r.origin||"—")} ${r.reviewCategory?` · <span class="muted">دسته اعلامی مشتری: ${esc(r.reviewCategory)}</span>`:""}</div>`:`<div class="note-box muted">برای این اخطار برگهٔ بررسی ثبت نشده است؛ فرم 8D با اطلاعات سرصفحه ساخته شده و بخش‌های علت/اقدام باید تکمیل شود.</div>`}
-  ${r.notes?`<div class="note-box"><b>توضیحات:</b>\n${esc(r.notes)}</div>`:""}`;
+  ${r.notes?`<div class="note-box"><b>توضیحات:</b>\n${esc(r.notes)}</div>`:""}
+  ${r.form8d && r.form8d!=="—" ? `<div id="form8d-editor">${formEditorHtml(r)}</div>` : '<div class="note-box muted">برای این اخطار فرم 8D تعریف نشده است.</div>'}`;
   $("#modal").classList.remove("hidden");
+  bindFormEditor(r);
 }
 function openProduct(product){
   const saved=state.product; state.product="";
@@ -1064,7 +1453,9 @@ function initFilters(){
   const cars=Array.from(new Set(DATA.warnings.map(r=>r.car))).sort();
   const grades=Array.from(new Set(DATA.warnings.map(r=>r.grade).filter(Boolean))).sort();
   const years=Array.from(new Set(DATA.warnings.map(r=>r.year).filter(Boolean))).sort();
+  const branches=Array.from(new Set(DATA.warnings.map(r=>r.branch).filter(Boolean))).sort();
   fillSelect($("#f-group"),groups,state.group);
+  fillSelect($("#f-branch"),branches,state.branch);
   fillSelect($("#f-car"),cars,state.car);
   fillSelect($("#f-grade"),grades,state.grade);
   $("#f-status").innerHTML=`<option value="">همه</option><option value="open">باز</option><option value="closed">خاتمه‌یافته</option>`;
@@ -1075,6 +1466,7 @@ function initFilters(){
   $("#f-group").addEventListener("change",e=>{state.group=e.target.value;state.family="";state.product="";state.page=1;syncSelects();render();});
   $("#f-family").addEventListener("change",e=>{state.family=e.target.value;state.product="";state.page=1;syncSelects();render();});
   $("#f-product").addEventListener("change",e=>{state.product=e.target.value;state.page=1;render();});
+  $("#f-branch").addEventListener("change",e=>{state.branch=e.target.value;state.page=1;render();});
   $("#f-car").addEventListener("change",e=>{state.car=e.target.value;state.page=1;render();});
   $("#f-grade").addEventListener("change",e=>{state.grade=e.target.value;state.page=1;render();});
   $("#f-status").addEventListener("change",e=>{state.status=e.target.value;state.page=1;render();});
@@ -1090,8 +1482,9 @@ function initFilters(){
   let timer=null;
   $("#f-q").addEventListener("input",e=>{clearTimeout(timer);timer=setTimeout(()=>{state.q=e.target.value;state.page=1;render();},180);});
   $("#reset").addEventListener("click",()=>{
-    Object.assign(state,{group:"",family:"",product:"",car:"",grade:"",status:"",year:"",from:"",to:"",q:"",review:"",productQ:"",warningQ:"",reviewQ:"",page:1});
+    Object.assign(state,{group:"",family:"",product:"",branch:"",defect:"",car:"",grade:"",status:"",year:"",from:"",to:"",q:"",review:"",productQ:"",warningQ:"",reviewQ:"",defectQ:"",formQ:"",formStatus:"",page:1});
     $("#f-q").value=""; $("#product-search").value=""; $("#warning-search").value=""; $("#review-search").value="";
+    $("#defect-search").value=""; $("#form-search").value=""; $("#form-status-filter").value=""; $("#f-branch").value=""; $("#form-scope").value="working";
     syncSelects(); refreshMonthSelects();
     $("#f-car").value="";$("#f-grade").value="";$("#f-status").value="";$("#f-year").value="";$("#f-review").value="";$("#f-from").value="";$("#f-to").value="";
     render();
@@ -1103,6 +1496,15 @@ function initFilters(){
   $("#warning-search").addEventListener("input",e=>{state.warningQ=e.target.value;state.page=1;renderWarningsTab(applyFilters());});
   $("#review-search").addEventListener("input",e=>{state.reviewQ=e.target.value;state.page=1;renderReviews(applyFilters());});
   $("#review-export").addEventListener("click",exportReviewCsv);
+  $("#defect-search").addEventListener("input",e=>{state.defectQ=e.target.value;renderDefectsTab(applyFilters());});
+  $("#defect-export").addEventListener("click",exportDefectCsv);
+  $("#form-search").addEventListener("input",e=>{state.formQ=e.target.value;state.page=1;renderFormsTab(applyFilters());});
+  $("#form-scope").addEventListener("change",e=>{state.formScope=e.target.value;state.page=1;renderFormsTab(applyFilters());});
+  $("#form-status-filter").innerHTML=`<option value="">همه وضعیت‌ها</option>`+(DATA.formStatuses||[]).map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join("");
+  $("#form-status-filter").addEventListener("change",e=>{state.formStatus=e.target.value;state.page=1;renderFormsTab(applyFilters());});
+  $("#form-export").addEventListener("click",exportFormCsv);
+  $("#form-export-json").addEventListener("click",exportFormJson);
+  FORM_STORE.init().then(()=>{renderFormsTab(applyFilters());});
   $$("#tabs .tab").forEach(btn=>btn.addEventListener("click",()=>switchTab(btn.dataset.tab)));
   $$("#trend-toggle button").forEach(btn=>btn.addEventListener("click",()=>{
     setTrendMode(btn.dataset.mode);
@@ -1141,6 +1543,8 @@ function render(){
   renderProductsTab(rows);
   renderWarningsTab(rows);
   renderReviews(rows);
+  renderDefectsTab(rows);
+  renderFormsTab(rows);
   renderQuality(rows);
 }
 function toCsv(rows){
@@ -1151,7 +1555,8 @@ function toCsv(rows){
     ["قطعات معیوب","qty"],["نمره منفی","score"],["گرید","grade"],["وضعیت","status"],["نیاز به بازبینی","review"],
     ["وضعیت اقدام کوتاه مدت","stAction"],["وضعیت اقدام میان مدت","mtAction"],
     ["آنالیز علت ایراد","cause"],["شرح اقدام اصلاحی","action"],["منشاء ایراد","origin"],
-    ["شماره کلیم","claimNo"],["شماره کارت نارنجی","orangeCard"],["شماره فرم 8D","form8d"],["دارای برگه بررسی","hasReview"]
+    ["برنچ","branch"],["ایراد مشتری","defect"],["تکرار ایراد در محصول","defectRepeat"],["علت استاندارد","causeStd"],["گروه ۶M","m6"],
+    ["شماره کلیم","claimNo"],["شماره کارت نارنجی","orangeCard"],["شماره فرم 8D","form8d"],["وضعیت فرم 8D","formStatus"],["دارای برگه بررسی","hasReview"]
   ];
   const head=cols.map(c=>c[0]).join(",");
   const body=rows.map(r=>cols.map(([_,k])=>{

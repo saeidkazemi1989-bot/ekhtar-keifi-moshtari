@@ -288,3 +288,13 @@ def date_quality(frame: pd.DataFrame) -> dict:
         "start": int(frame.loc[frame["سال"].notna(), "سال"].min()) if frame["سال"].notna().any() else None,
         "end": int(frame.loc[frame["سال"].notna(), "سال"].max()) if frame["سال"].notna().any() else None,
     }
+
+
+def branch_summary(frame: pd.DataFrame) -> pd.DataFrame:
+    """خلاصه بر اساس برنچ (ELE / EMS / POL)."""
+    if "برنچ" not in frame.columns:
+        return pd.DataFrame()
+    table = summarize(frame, "برنچ")
+    total = table[WARNING_COUNT].sum() or 1
+    table["سهم"] = table[WARNING_COUNT] / total
+    return table.sort_values(WARNING_COUNT, ascending=False).reset_index(drop=True)

@@ -45,6 +45,18 @@ class EightDContext:
     claim: str
     orange_card: str
     grade: str
+    owner: str = ""
+    due: str = ""
+    team: str = ""
+    problem: str = ""
+    containment: str = ""
+    root_cause: str = ""
+    corrective: str = ""
+    verification: str = ""
+    prevention: str = ""
+    lesson: str = ""
+    form_status: str = ""
+    percent: int = 0
 
 
 def _text(value: object) -> str:
@@ -54,7 +66,8 @@ def _text(value: object) -> str:
     return "" if text.lower() in {"nan", "none", "nat"} else text
 
 
-def _context(row: pd.Series) -> EightDContext:
+def _context(row: pd.Series, entry: dict | None = None) -> EightDContext:
+    entry = entry or {}
     return EightDContext(
         serial=row.get("سریال اخطار"),
         status=_text(row.get("وضعیت اخطار")),
@@ -75,6 +88,18 @@ def _context(row: pd.Series) -> EightDContext:
         claim=_text(row.get("شماره کلیم")),
         orange_card=_text(row.get("شماره کارت نارنجی")),
         grade=_text(row.get("گرید ایراد")),
+        owner=_text(entry.get("owner")),
+        due=_text(entry.get("due")),
+        team=_text(entry.get("team")),
+        problem=_text(entry.get("problem")),
+        containment=_text(entry.get("containment")),
+        root_cause=_text(entry.get("root_cause")),
+        corrective=_text(entry.get("corrective")),
+        verification=_text(entry.get("verification")),
+        prevention=_text(entry.get("prevention")),
+        lesson=_text(entry.get("lesson")),
+        form_status=_text(entry.get("status")),
+        percent=int(entry.get("__percent", 0) or 0),
     )
 
 
@@ -154,7 +179,7 @@ def _fill(template_path: Path, context: EightDContext, index: int):
 
     # اقدام محدودکنندهٔ موقت
     temporary = tables[4]
-    _append(temporary.rows[2].cells[2], context.action)
+    _append(temporary.rows[2].cells[2], context.containment or context.action)
     _append(temporary.rows[2].cells[3], context.supplier)
     _append(temporary.rows[2].cells[4], context.maker)
     _append(temporary.rows[2].cells[5], context.date)
@@ -165,7 +190,7 @@ def _fill(template_path: Path, context: EightDContext, index: int):
 
     # اقدام اصلاحی دائم
     permanent = tables[7]
-    _append(permanent.rows[3].cells[2], context.action)
+    _append(permanent.rows[3].cells[2], context.corrective or context.action)
     _append(permanent.rows[3].cells[6], context.supplier)
 
     # درس آموخته
@@ -225,38 +250,55 @@ def _compact_form(doc, context: EightDContext, index: int) -> None:
         cells[0].text, cells[1].text, cells[2].text, cells[3].text = a, b, c, d
     _style_table(info)
 
+    if context.form_status or context.percent:
+        status_line = doc.add_paragraph()
+        status_line.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        status_run = status_line.add_run(
+            f"وضعیت فرم: {context.form_status or '—'}  |  درصد تکمیل: {context.percent}٪"
+            + (f"  |  مسئول: {context.owner}" if context.owner else "")
+            + (f"  |  تاریخ تکمیل: {context.due}" if context.due else "")
+        )
+        status_run.font.size = Pt(8)
+
+    default_problem = "\n".join(
+        x
+        for x in (
+            f"شرح قطعه: {context.title}" if context.title else "",
+            f"شرح خطا: {context.error}" if context.error else "",
+            f"محل صدور / اعلام‌کننده: {context.location}" if context.location else "",
+            f"تاریخ وقوع: {context.date}" if context.date else "",
+        )
+        if x
+    )
+    default_root = "\n".join(
+        x
+        for x in (
+            f"آنالیز علت ایراد: {context.cause}" if context.cause else "",
+            f"منشاء ایراد: {context.origin}" if context.origin else "",
+        )
+        if x
+    )
     sections = [
-        ("D1 — تیم", "اعضای تیم، دبیر جلسه و مسئول پیگیری: (تکمیل توسط واحد کیفیت)"),
         (
-            "D2 — تعریف مسئله",
+            "D1 — تیم",
             "\n".join(
                 x
                 for x in (
-                    f"شرح قطعه: {context.title}" if context.title else "",
-                    f"شرح خطا: {context.error}" if context.error else "",
-                    f"محل صدور / اعلام‌کننده: {context.location}" if context.location else "",
-                    f"تاریخ وقوع: {context.date}" if context.date else "",
-                )
-                if x
-            ),
-        ),
-        ("D3 — اقدام محدودکنندهٔ موقت", context.action or "(ثبت نشده)"),
-        (
-            "D4 — تحلیل علت ریشه‌ای",
-            "\n".join(
-                x
-                for x in (
-                    f"آنالیز علت ایراد: {context.cause}" if context.cause else "",
-                    f"منشاء ایراد: {context.origin}" if context.origin else "",
+                    context.team,
+                    f"مسئول پیگیری: {context.owner}" if context.owner else "",
+                    f"تاریخ تکمیل: {context.due}" if context.due else "",
                 )
                 if x
             )
-            or "(ثبت نشده)",
+            or "اعضای تیم، دبیر جلسه و مسئول پیگیری: (تکمیل توسط واحد کیفیت)",
         ),
-        ("D5 — اقدام اصلاحی دائم", context.action or "(ثبت نشده)"),
-        ("D6 — اجرا و صحه‌گذاری", "تاریخ اجرا، مسئول و شاخص اثربخشی: (تکمیل توسط واحد کیفیت)"),
-        ("D7 — پیشگیری از تکرار", "به‌روزرسانی PFMEA / دستورالعمل / پوکایوکه: (تکمیل توسط واحد کیفیت)"),
-        ("D8 — بستن پرونده و درس آموخته", "درس آموخته و تاریخ بسته شدن: (تکمیل توسط واحد کیفیت)"),
+        ("D2 — تعریف مسئله", context.problem or default_problem),
+        ("D3 — اقدام محدودکنندهٔ موقت", context.containment or context.action or "(ثبت نشده)"),
+        ("D4 — تحلیل علت ریشه‌ای", context.root_cause or default_root or "(ثبت نشده)"),
+        ("D5 — اقدام اصلاحی دائم", context.corrective or context.action or "(ثبت نشده)"),
+        ("D6 — اجرا و صحه‌گذاری", context.verification or "تاریخ اجرا، مسئول و شاخص اثربخشی: (تکمیل توسط واحد کیفیت)"),
+        ("D7 — پیشگیری از تکرار", context.prevention or "به‌روزرسانی PFMEA / دستورالعمل / پوکایوکه: (تکمیل توسط واحد کیفیت)"),
+        ("D8 — بستن پرونده و درس آموخته", context.lesson or "درس آموخته و تاریخ بسته شدن: (تکمیل توسط واحد کیفیت)"),
     ]
     for label, value in sections:
         table = doc.add_table(rows=1, cols=2)
@@ -273,6 +315,7 @@ def build_8d_document(
     template_path: str | Path,
     output_path: str | Path,
     split_dir: str | Path | None = None,
+    entries: dict[str, dict] | None = None,
 ) -> tuple[Path, int]:
     """ساخت سند 8D فشرده برای همهٔ ردیف‌ها؛ خروجی: (مسیر فایل، تعداد فرم)."""
     if Document is None:
@@ -303,9 +346,18 @@ def build_8d_document(
     if split_dir is not None:
         Path(split_dir).mkdir(parents=True, exist_ok=True)
 
+    entries = entries or {}
     count = 0
+    filled = 0
     for index, (_, row) in enumerate(rows.iterrows()):
-        context = _context(row)
+        entry = dict(entries.get(str(row.get("سریال اخطار")), {}))
+        if entry:
+            from .eight_d_store import percent as _percent
+
+            entry["__percent"] = _percent(entry)
+            if entry["__percent"] >= 100:
+                filled += 1
+        context = _context(row, entry)
         doc.add_page_break()
         _compact_form(doc, context, index)
         if split_dir is not None:
@@ -314,15 +366,32 @@ def build_8d_document(
             single.save(str(Path(split_dir) / f"8D-{context.serial}.docx"))
         count += 1
 
+    summary = doc.add_paragraph()
+    summary.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    summary_run = summary.add_run(
+        f"جمع‌بندی: {count} فرم، {filled} فرم تکمیل‌شده ({round(filled / count * 100) if count else 0}٪)."
+    )
+    summary_run.font.size = Pt(9)
+
     doc.save(str(output_path))
     return output_path, count
 
 
-def build_official_form(row: pd.Series, template_path: str | Path, output_path: str | Path) -> Path:
+def build_official_form(
+    row: pd.Series,
+    template_path: str | Path,
+    output_path: str | Path,
+    entry: dict | None = None,
+) -> Path:
     """پر کردن قالب رسمی QA-DA-02-C برای یک اخطار."""
     if Document is None:
         raise RuntimeError("کتابخانهٔ python-docx نصب نیست.")
-    context = _context(row)
+    entry = dict(entry or {})
+    if entry:
+        from .eight_d_store import percent as _percent
+
+        entry["__percent"] = _percent(entry)
+    context = _context(row, entry)
     document = _fill(Path(template_path), context, 0)
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)

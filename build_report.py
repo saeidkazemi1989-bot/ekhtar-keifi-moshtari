@@ -169,8 +169,10 @@ def main() -> int:
     # ایمپورت‌ها بعد از بررسی انجام می‌شوند تا پیام خطا خوانا باشد
     import pandas as pd
 
+    from src import eight_d_store
     from src.aggregate import tech_table
-    from src.catalog import load_catalog
+    from src.catalog import add_branch, load_catalog
+    from src.defects import add_defect_fields
     from src.mapper import ProductMapper, enrich_warnings, product_table
     from src.report_8d import build_8d_document, build_official_form
     from src.report_excel import build_excel
@@ -205,6 +207,18 @@ def main() -> int:
     else:
         log("   فایل اصلاحات گروه‌بندی نیست (اختیاری).")
 
+    # برنچ (ELE/EMS/POL) — از فایل گروه‌بندی و در صورت نبود، استنباط از خانواده
+    enriched = add_branch(enriched, catalog)
+    branch_counts = enriched["برنچ"].value_counts().to_dict()
+    log("   برنچ: " + " | ".join(f"{k} {v:,}" for k, v in branch_counts.items()))
+
+    # یکسان‌سازی ایراد مشتری و علت‌های بررسی
+    enriched = add_defect_fields(enriched)
+    log(
+        f"   ایراد مشتری یکتا: {enriched['ایراد مشتری'].nunique():,} | "
+        f"علت استاندارد یکتا: {enriched['علت استاندارد'].nunique():,}"
+    )
+
     products = product_table(mapper)
     techs = tech_table(enriched)
     log(f"   نقشه محصولات: {len(products):,} | شماره فنی یکتا: {len(techs):,}")
@@ -230,11 +244,21 @@ def main() -> int:
     log("۳) ساخت فرم‌های 8D…")
     eight_d = pd.DataFrame()
     forms_written = False
+    store_file = eight_d_store.store_path(OUTPUT_DIR)
+    entries = eight_d_store.load(store_file)
+    if entries:
+        log(f"   فرم‌های ذخیره‌شده در داشبورد: {len(entries):,}")
     if not EIGHT_D_TEMPLATE.exists():
         log("   قالب فرم 8D پیدا نشد؛ فرم‌ها ساخته نشدند.")
     else:
-        form_rows = eight_d_rows(enriched)
-        eight_d = form_rows
+        form_rows = eight_d_rows(enriched)          # فرم‌های فایل ورد (باز یا دارای بررسی)
+        all_forms = eight_d_rows(enriched, scope="all")
+        all_forms = eight_d_store.merge_into(all_forms, entries)
+        docx_serials = set(form_rows["سریال اخطار"].astype(str))
+        all_forms["در فایل ورد"] = [
+            "بله" if str(s) in docx_serials else "خیر" for s in all_forms["سریال اخطار"]
+        ]
+        eight_d = all_forms
         forms = dict(zip(form_rows["سریال اخطار"], form_rows["شماره فرم 8D"]))
         enriched["شماره فرم 8D"] = [
             forms.get(serial, "") for serial in enriched["سریال اخطار"]
@@ -250,6 +274,7 @@ def main() -> int:
                     match.iloc[0],
                     EIGHT_D_TEMPLATE,
                     OUTPUT_DIR / "فرم 8D رسمی" / f"8D-{serial_arg}.docx",
+                    entry=entries.get(str(serial_arg)),
                 )
             except Exception as error:
                 fail(f"ساخت فرم رسمی 8D ناموفق بود: {error}")
@@ -258,9 +283,11 @@ def main() -> int:
             log(f"   فرم رسمی QA-DA-02-C: {official.relative_to(ROOT)}")
             return 0
         try:
-            path, count = build_8d_document(form_rows, EIGHT_D_TEMPLATE, forms_path)
+            path, count = build_8d_document(
+                form_rows, EIGHT_D_TEMPLATE, forms_path, entries=entries
+            )
             forms_written = True
-            log(f"   {count:,} فرم 8D ساخته شد: {path.name}")
+            log(f"   {count:,} فرم 8D ساخته شد: {path.name} (فرم برای هر {len(all_forms):,} اخطار در داشبورد)")
         except Exception as error:
             log(f"   [هشدار] فایل ورد فرم‌های 8D ساخته نشد: {error}")
             log("           بقیهٔ گزارش ساخته می‌شود. برای ساخت فرم‌ها اجرا کنید:")
@@ -277,11 +304,19 @@ def main() -> int:
         eight_d=eight_d,
         grouping_checks=checks,
         unmatched_review=unmatched_review,
+        entries=entries,
     )
     log("   " + str(excel_path.relative_to(ROOT)))
 
     log("۵) ساخت داشبورد HTML…")
-    build_html(enriched, html_path, sources, checks=checks, unmatched=unmatched_review)
+    build_html(
+        enriched,
+        html_path,
+        sources,
+        checks=checks,
+        unmatched=unmatched_review,
+        entries=entries,
+    )
     log("   " + str(html_path.relative_to(ROOT)))
     build_html(
         enriched,
@@ -290,6 +325,7 @@ def main() -> int:
         data_file=OUTPUT_DIR / "dashboard-data.js",
         checks=checks,
         unmatched=unmatched_review,
+        entries=entries,
     )
     log("   " + str((OUTPUT_DIR / "index.html").relative_to(ROOT)) + " + dashboard-data.js")
 
