@@ -135,6 +135,7 @@ def _payload(
                 "branch": _clean_text(row.get("برنچ", "")),
                 "branchSource": _clean_text(row.get("منبع برنچ", "")),
                 "defect": _clean_text(row.get("ایراد مشتری", "")),
+                "defectSrc": _clean_text(row.get("منبع ایراد", "")),
                 "defectCat": _clean_text(row.get("دسته‌بندی ایراد", "")),
                 "defectGroup": _clean_text(row.get("گروه ایراد", "")),
                 "defectRepeat": int(row.get("تکرار ایراد در محصول", 0) or 0),
@@ -448,6 +449,8 @@ tbody tr:last-child td{border-bottom:0}
 .wm-rows{display:grid;grid-template-columns:118px 1fr;gap:7px 10px;font-size:12.5px}
 .wm-rows .k{color:var(--muted);font-weight:600}
 .wm-rows .v{color:var(--ink);word-break:break-word}
+.wm-tag{display:inline-block;margin-inline-start:8px;padding:1px 7px;border-radius:999px;background:#eef2ff;color:#4338ca;font-size:10.5px;font-weight:700;vertical-align:middle}
+.wm-tag.manual{background:#ecfdf5;color:#047857}
 .wm-text{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:11px 13px;font-size:12.5px;line-height:1.9;white-space:pre-wrap;color:#0f172a}
 .wm-empty{border:1px dashed #cbd5e1;border-radius:14px;padding:22px;text-align:center;color:var(--muted);font-size:12.5px;background:#f8fafc;line-height:2}
 .wm-source{display:flex;gap:9px;align-items:flex-start;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;border-radius:12px;padding:9px 12px;font-size:11.5px;margin-bottom:12px;line-height:1.8}
@@ -609,6 +612,7 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
       <b>ایراد مشتری</b> متن واقعی ایراد است که از «توضیحات» استخراج می‌شود؛ نمونه: اخطار ۲۳۵۹۱۱ ← «عدم عملکرد نشانگر درب‌ها».
       <b>دسته‌بندی ایراد</b> جداگانه و فقط <b>عملکردی</b> یا <b>ظاهری</b> است. ستون «گروه فنی» فقط یک لایهٔ کمکی برای گزارش است و جای توصیف ایراد را نمی‌گیرد.
     </div>
+    <div class="quality-note" id="pattern-note" style="margin:0 0 12px" hidden></div>
     <div class="kpi-grid" id="defect-kpis" style="grid-template-columns:repeat(4,1fr)"></div>
     <div class="grid-2">
       <div class="card"><h3>پرتکرارترین ایرادهای مشتری <span class="hint">توصیف واقعی استخراج‌شده از «توضیحات»</span></h3><div class="bars" id="defect-bars"></div></div>
@@ -1244,6 +1248,12 @@ function renderDefectsTab(rows){
   const scoped=rows.filter(r=>state.defectCat==="all"||r.defectCat===state.defectCat);
   const items=defectRows(scoped);
   const top=items[0];
+  const patternNote=$("#pattern-note");
+  if(patternNote){
+    const manual=rows.filter(r=>(r.defectSrc||"").indexOf("الگوی دستی")===0).length;
+    patternNote.hidden=!manual;
+    if(manual) patternNote.innerHTML=`<b>الگوی دستی</b> از «فرم ثبت محصولات برگشتی» یاد گرفته شده است: ${fmt(manual)} اخطار (${pct(manual/(rows.length||1))}) به همان عبارت یکتای دستی یکسان شده و بقیه متن استخراج خودکار را دارند. در جزئیات هر اخطار، منبع متن کنار «ایراد مشتری» نشان داده می‌شود.`;
+  }
   const functional=rows.filter(r=>r.defectCat==="عملکردی").length;
   const visual=rows.filter(r=>r.defectCat==="ظاهری").length;
   const empty=rows.length-functional-visual;
@@ -1529,7 +1539,7 @@ function summaryPanelHtml(r){
     <div class="wm-card">
       <h4>ایراد و دسته‌بندی</h4>
       <div class="wm-rows">
-        ${wmRow("ایراد مشتری", `<b>${esc(r.defect||"—")}</b>`)}
+        ${wmRow("ایراد مشتری", `<b>${esc(r.defect||"—")}</b>${r.defectSrc?`<span class="wm-tag ${r.defectSrc.indexOf("الگوی دستی")===0?"manual":""}">${esc(r.defectSrc)}</span>`:""}`)}
         ${wmRow("دسته‌بندی", `${defectCatBadge(r.defectCat)||'<span class="muted tiny">ثبت نشده</span>'}`)}
         ${wmRow("گروه فنی", esc(r.defectGroup))}
         ${wmRow("تکرار در محصول", r.defectRepeat>1?`<span class="badge red">${fmt(r.defectRepeat)} بار در این محصول</span>`:"۱ بار")}

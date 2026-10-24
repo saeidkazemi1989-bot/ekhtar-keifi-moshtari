@@ -5,6 +5,8 @@
     python build_report.py --check    # فقط بررسی پیش‌نیازها و فایل‌های ورودی
     python build_report.py --pause    # در پایان منتظر زدن Enter می‌ماند
     python build_report.py --defect-template   # ساخت فایل نمونهٔ اصلاح متن ایرادها
+    python build_report.py --learn-defects "فرم ثبت محصولات برگشتی1403.xlsx"  # یادگیری دوبارهٔ الگوی دستی
+    python build_report.py --no-pattern        # بدون استفاده از الگوی دستی
 
 خروجی‌ها در پوشهٔ output/ ساخته می‌شوند و گزارش کامل در output/build.log ثبت می‌شود.
 """
@@ -178,7 +180,8 @@ def main() -> int:
     from src import eight_d_store
     from src.aggregate import tech_table
     from src.catalog import add_branch, load_catalog
-    from src.defects import add_defect_fields, load_defect_overrides, make_defect_template
+    from src import defect_learn
+    from src.defects import add_defect_fields, apply_defect_overrides, load_defect_overrides, make_defect_template
     from src import storage
     from src.mapper import ProductMapper, enrich_warnings, product_table
     from src.report_8d import build_8d_document, build_official_form
@@ -248,7 +251,53 @@ def main() -> int:
         log(f"   اصلاح دستی متن ایراد: {len(defect_overrides):,} سریال از {defect_overrides_file.relative_to(ROOT)}")
     else:
         log("   فایل «اصلاح ایرادها.xlsx» نیست (اختیاری).")
-    enriched = add_defect_fields(enriched, defect_overrides)
+    enriched = add_defect_fields(enriched)
+
+    # الگوی دستی «فرم ثبت محصولات برگشتی»: اگر فایل باشد و الگو قدیمی باشد،
+    # دوباره یاد گرفته می‌شود و متن ایراد با همان روش یکسان‌سازی می‌شود.
+    manual_file = None
+    learned = {}
+    if "--no-pattern" not in sys.argv:
+        requested = _option_value("--learn-defects")
+        if requested:
+            manual_file = Path(requested)
+            if not manual_file.is_absolute():
+                manual_file = ROOT / manual_file
+        else:
+            manual_file = defect_learn.find_manual_file(storage.DATA_DIR, ROOT)
+        if manual_file and manual_file.exists():
+            library_path = storage.DATA_DIR / defect_learn.LIBRARY_NAME
+            stale = (
+                "--learn-defects" in sys.argv
+                or not library_path.exists()
+                or library_path.stat().st_mtime < manual_file.stat().st_mtime
+            )
+            try:
+                if stale:
+                    payload = defect_learn.learn(manual_file, storage.DATA_DIR)
+                    log(
+                        f"   الگوی ایراد از «{manual_file.name}» یاد گرفته شد: "
+                        f"{len(payload['patterns']):,} الگو از {payload['texts']:,} متن دستی"
+                    )
+                learned = defect_learn.load(storage.DATA_DIR)
+            except Exception as error:
+                log(f"   [هشدار] خواندن الگوی فایل دستی ناموفق بود: {error}")
+        elif "--learn-defects" in sys.argv:
+            fail("فایل «فرم ثبت محصولات برگشتی» پیدا نشد.")
+            return 3
+
+    if learned:
+        enriched, sources = defect_learn.apply(enriched, learned)
+        matched = sum(1 for source in sources if source.startswith("الگوی دستی"))
+        log(
+            f"   ایراد مطابق الگوی دستی: {matched:,} | "
+            f"بدون الگو (استخراج خودکار): {len(sources) - matched:,}"
+        )
+
+    if defect_overrides:
+        enriched = apply_defect_overrides(enriched, defect_overrides)
+    enriched = defect_learn.refresh_keys(enriched)
+
     categories = enriched["دسته‌بندی ایراد"].value_counts().to_dict()
     log(
         f"   ایراد مشتری یکتا: {enriched['ایراد مشتری'].nunique():,} | "
@@ -271,6 +320,8 @@ def main() -> int:
         "catalog": CATALOG_FILE.name,
         "review": REVIEW_FILE.name,
     }
+    if learned and manual_file:
+        sources["manual_pattern"] = manual_file.name
 
     excel_path = OUTPUT_DIR / "گزارش دسته‌بندی اخطارهای کیفی.xlsx"
     html_path = OUTPUT_DIR / "داشبورد اخطارهای کیفی.html"

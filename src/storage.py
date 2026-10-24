@@ -98,6 +98,11 @@ def watched_paths() -> list[Path]:
             if candidate.exists():
                 paths.append(candidate)
                 break
+    # فرم دستی «فرم ثبت محصولات برگشتی» هر زمان اضافه/ویرایش شود، الگو دوباره
+    # یاد گرفته می‌شود و گزارش خودکار تازه می‌شود
+    for base in (DATA_DIR, ROOT):
+        for pattern in ("فرم ثبت محصولات برگشتی*.xls*", "*محصولات برگشتی*.xls*"):
+            paths.extend(sorted(base.glob(pattern)))
     # فرم‌های 8D در داشبورد زنده خوانده می‌شوند؛ ذخیرهٔ فرم نیازی به ساخت دوباره ندارد
     for name in (DEFECT_OVERRIDES_NAME, GROUP_OVERRIDES_NAME):
         candidate = DATA_DIR / name
@@ -105,7 +110,7 @@ def watched_paths() -> list[Path]:
             paths.append(candidate)
     paths.extend(sorted((ROOT / "src").glob("*.py")))
     paths.append(ROOT / "build_report.py")
-    return paths
+    return list(dict.fromkeys(paths))
 
 
 def fingerprint(paths: list[Path] | None = None) -> dict[str, int]:
