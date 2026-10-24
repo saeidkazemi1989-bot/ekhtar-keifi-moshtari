@@ -33,6 +33,10 @@ DEFECT_OVERRIDES_FILE = ROOT / "اصلاح ایرادها.xlsx"
 EIGHT_D_TEMPLATE = ROOT / "QA-DA-02-C.docx"
 WARNINGS_SHEET = "گزارش اخطار کيفي"
 
+# داده‌ها و اصلاح‌های دستی در پوشهٔ پایدار data/ نگه داشته می‌شوند تا با
+# به‌روزرسانی برنامه پاک نشوند (src/storage.py)
+DATA_DIR = ROOT / "data"
+
 REQUIRED_MODULES = {
     "pandas": "pandas",
     "openpyxl": "openpyxl",
@@ -175,6 +179,7 @@ def main() -> int:
     from src.aggregate import tech_table
     from src.catalog import add_branch, load_catalog
     from src.defects import add_defect_fields, load_defect_overrides, make_defect_template
+    from src import storage
     from src.mapper import ProductMapper, enrich_warnings, product_table
     from src.report_8d import build_8d_document, build_official_form
     from src.report_excel import build_excel
@@ -183,8 +188,9 @@ def main() -> int:
     from src.status import PRIORITY_ORDER, add_priority
     from src.review import attach_review, eight_d_rows, grouping_checks, load_claims, load_review
 
+    storage.ensure_data_dir()
     if "--defect-template" in sys.argv:
-        path = make_defect_template(DEFECT_OVERRIDES_FILE)
+        path = make_defect_template(storage.DATA_DIR / DEFECT_OVERRIDES_FILE.name)
         log(f"فایل نمونه ساخته شد: {path.relative_to(ROOT)}")
         log("سریال اخطار و متن درست را در آن بنویسید و دوباره گزارش را بسازید.")
         return 0
@@ -209,10 +215,11 @@ def main() -> int:
         log("   فایل بررسی اخطارها پیدا نشد؛ گزارش بدون برگهٔ بررسی ساخته می‌شود.")
 
     # اصلاحات دستی گروه‌بندی (اختیاری)
-    if OVERRIDES_FILE.exists():
-        overrides = load_overrides(OVERRIDES_FILE)
+    overrides_file = storage.resolve_input(OVERRIDES_FILE.name)
+    if overrides_file.exists():
+        overrides = load_overrides(overrides_file)
         enriched, fixed = apply_overrides(enriched, overrides)
-        log(f"   اصلاح دستی گروه‌بندی: {fixed:,} ردیف")
+        log(f"   اصلاح دستی گروه‌بندی: {fixed:,} ردیف از {overrides_file.relative_to(ROOT)}")
     else:
         log("   فایل اصلاحات گروه‌بندی نیست (اختیاری).")
 
@@ -235,9 +242,10 @@ def main() -> int:
 
     # توصیف ایراد مشتری، دسته‌بندی دوگانه و یکسان‌سازی علت‌های بررسی
     defect_overrides = {}
-    if DEFECT_OVERRIDES_FILE.exists():
-        defect_overrides = load_defect_overrides(DEFECT_OVERRIDES_FILE)
-        log(f"   اصلاح دستی متن ایراد: {len(defect_overrides):,} سریال")
+    defect_overrides_file = storage.resolve_input(DEFECT_OVERRIDES_FILE.name)
+    if defect_overrides_file.exists():
+        defect_overrides = load_defect_overrides(defect_overrides_file)
+        log(f"   اصلاح دستی متن ایراد: {len(defect_overrides):,} سریال از {defect_overrides_file.relative_to(ROOT)}")
     else:
         log("   فایل «اصلاح ایرادها.xlsx» نیست (اختیاری).")
     enriched = add_defect_fields(enriched, defect_overrides)
@@ -273,7 +281,7 @@ def main() -> int:
     log("۳) ساخت فرم‌های 8D…")
     eight_d = pd.DataFrame()
     forms_written = False
-    store_file = eight_d_store.store_path(OUTPUT_DIR)
+    store_file = eight_d_store.store_path()
     entries = eight_d_store.load(store_file)
     if entries:
         log(f"   فرم‌های ذخیره‌شده در داشبورد: {len(entries):,}")

@@ -399,6 +399,10 @@ tbody tr:last-child td{border-bottom:0}
 .store-badge.server{background:#ccfbf1;color:#0f766e}
 .store-badge.local{background:#fef3c7;color:#92400e}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:10px 18px;border-radius:12px;font-size:12.5px;z-index:200;opacity:0;transition:opacity .25s;pointer-events:none}
+.update-banner{position:fixed;bottom:20px;right:20px;z-index:210;display:none;gap:10px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 34px rgba(15,23,42,.18);padding:10px 14px;font-size:12.5px}
+.update-banner.show{display:flex}
+.update-banner .dot-live{width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.18)}
+.update-banner .dot-live.off{background:#94a3b8;box-shadow:0 0 0 3px rgba(148,163,184,.18)}
 .toast.show{opacity:1}
 .modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:grid;place-items:center;z-index:100;padding:18px}
 .modal.hidden{display:none}
@@ -435,7 +439,8 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
   </div>
   <div class="meta" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:flex-end">
     <div id="meta"></div>
-    <button class="btn" id="refresh-data" title="ساخت دوبارهٔ گزارش از فایل‌های ورودی (بدون دانلود مجدد پوشه)" style="background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.35);padding:9px 14px;white-space:nowrap">⟳ به‌روزرسانی داده‌ها</button>
+    <button class="btn" id="refresh-data" title="ساخت دوبارهٔ گزارش از فایل‌های ورودی (داده‌های ذخیره‌شده حفظ می‌شوند)" style="background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.35);padding:9px 14px;white-space:nowrap">⟳ به‌روزرسانی</button>
+    <span id="auto-refresh-badge" class="tiny" style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:5px 10px;color:#ccfbf1" title="اگر فایل‌های ورودی یا برنامه تغییر کند، گزارش خودکار تازه می‌شود"><span class="dot-live off"></span><span id="auto-refresh-text">به‌روزرسانی خودکار</span></span>
   </div>
 </header>
 <nav class="tabs" id="tabs">
@@ -635,6 +640,12 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
 </main>
 <footer id="footer"></footer>
 
+<div class="update-banner" id="update-banner">
+  <span id="update-banner-text">نسخهٔ تازهٔ گزارش آماده است</span>
+  <button class="btn primary" id="update-banner-apply" style="padding:6px 10px">بارگذاری</button>
+  <button class="btn" id="update-banner-later" style="padding:6px 10px">بعداً</button>
+</div>
+
 <div class="modal hidden" id="modal">
   <div class="modal-box">
     <div class="modal-head"><h2 id="modal-title">جزئیات</h2><button class="btn" id="modal-close">بستن</button></div>
@@ -696,6 +707,9 @@ const state = {group:"",family:"",product:"",car:"",grade:"",status:"",priority:
 let currentProducts = [];
 let currentWarnings = [];
 let currentReviews = [];
+let FORM_DIRTY = false;      // ویرایش ذخیره‌نشده در فرم 8D
+let PAGE_BUILD = null;       // شناسهٔ نسخهٔ بارگذاری‌شده
+let SERVER_WATCH = null;     // وضعیت به‌روزرسانی خودکار روی سرور
 
 function monthKey(r){ return r.monthKey || 0; }
 function byPriority(a,b){
@@ -1336,6 +1350,8 @@ function formEditorHtml(r){
   </div>`;
 }
 function bindFormEditor(r){
+  FORM_DIRTY = false;
+  $$("[data-f]").forEach(el=>el.addEventListener("input",()=>{ FORM_DIRTY = true; }));
   const fill=$("#fill-suggest");
   if(fill) fill.addEventListener("click",()=>{
     const map={
@@ -1358,6 +1374,7 @@ function bindFormEditor(r){
     const result=await FORM_STORE.save(r.id,values,r.form8d);
     save.disabled=false; save.textContent="ذخیرهٔ فرم";
     if(result.ok){
+      FORM_DIRTY = false;
       r.form={...values};
       r.formStatus=formStatusOf(values); r.formPercent=formPercentOf(values);
       const stateEl=$("#form-state");
@@ -1695,42 +1712,102 @@ function showCsvFallback(csv,url,filename="ekhtar-grouped.csv"){
     catch(e){ $("#csv-text").select(); document.execCommand("copy"); $("#copy-state").textContent="کپی شد ✓"; }
   });
 }
+function showUpdateBanner(text){
+  const banner=$("#update-banner"); if(!banner) return;
+  const label=$("#update-banner-text"); if(label && text) label.textContent=text;
+  banner.classList.add("show");
+}
+function hideUpdateBanner(){
+  const banner=$("#update-banner"); if(banner) banner.classList.remove("show");
+}
+function reloadNewBuild(){
+  FORM_DIRTY=false;
+  location.replace("/?v="+Date.now());
+}
+function setAutoBadge(status){
+  const badge=$("#auto-refresh-badge"), text=$("#auto-refresh-text"), dot=badge&&badge.querySelector(".dot-live");
+  if(!badge) return;
+  if(!status || status.watching===false){
+    badge.style.display="none"; return;
+  }
+  badge.style.display="inline-flex";
+  if(dot) dot.classList.toggle("off", status.state!=="running");
+  if(text) text.textContent = status.state==="running"
+    ? `در حال ساخت گزارش… ${Math.floor(status.elapsed||0)} ثانیه`
+    : "به‌روزرسانی خودکار: روشن";
+}
+async function pollStatus(){
+  if(location.protocol==="file:") return;
+  try{
+    const response=await fetch("/api/status",{cache:"no-store"});
+    if(!response.ok) return;
+    const status=await response.json();
+    setAutoBadge(status);
+    if(!status.buildId) return;
+    if(PAGE_BUILD===null){ PAGE_BUILD=status.buildId; return; }
+    if(status.buildId!==PAGE_BUILD){
+      PAGE_BUILD=status.buildId;
+      if(FORM_DIRTY){
+        showUpdateBanner("نسخهٔ تازه آماده است — اول فرم 8D را ذخیره کنید");
+      }else{
+        reloadNewBuild();
+      }
+    }
+  }catch(error){ /* سرور در دسترس نیست؛ صفحه ثابت می‌ماند */ }
+}
 async function refreshDashboard(){
   const btn=$("#refresh-data"); if(!btn) return;
   if(location.protocol==="file:"){
     toast("این دکمه در حالت سرور کار می‌کند؛ داشبورد را با «python serve.py» باز کنید");
     return;
   }
-  const original=btn.innerHTML;
+  if(FORM_DIRTY){
+    showUpdateBanner("اول فرم 8D را ذخیره کنید، بعد به‌روزرسانی بزنید");
+    toast("تغییرات ذخیره‌نشدهٔ فرم وجود دارد؛ اول «ذخیرهٔ فرم» را بزنید");
+    return;
+  }
+  const original=btn.textContent;
   btn.disabled=true;
-  const label=text=>{btn.textContent=text;};
-  label("در حال ساخت گزارش…");
+  btn.textContent="در حال ساخت گزارش…";
   try{
     const response=await fetch("/api/rebuild",{method:"POST",headers:{"Accept":"application/json"}});
     const started=await response.json().catch(()=>({}));
     if(!response.ok && response.status!==409) throw new Error(started.error||"شروع ساخت گزارش ناموفق بود");
     for(let i=0;i<900;i++){
       await new Promise(resolve=>setTimeout(resolve,1500));
-      const statusResponse=await fetch("/api/rebuild",{cache:"no-store"});
+      const statusResponse=await fetch("/api/status",{cache:"no-store"});
       const status=await statusResponse.json();
+      setAutoBadge(status);
       if(status.state==="done"){
-        label("بارگذاری نسخهٔ جدید…");
-        location.replace("/?v="+Date.now());
+        if(status.buildId) PAGE_BUILD=status.buildId;
+        btn.textContent="بارگذاری نسخهٔ جدید…";
+        reloadNewBuild();
         return;
       }
       if(status.state==="error") throw new Error(status.error||"ساخت گزارش ناموفق بود");
-      label(`در حال ساخت گزارش… ${Math.floor(status.elapsed||0)} ثانیه`);
+      btn.textContent=`در حال ساخت گزارش… ${Math.floor(status.elapsed||0)} ثانیه`;
     }
     throw new Error("ساخت گزارش بیش از حد طول کشید");
   }catch(error){
     toast((error.message||"خطا در به‌روزرسانی")+" — می‌توانید python build_report.py را دستی اجرا کنید");
-    btn.disabled=false; btn.innerHTML=original;
+    btn.disabled=false; btn.textContent=original;
   }
 }
 $("#refresh-data").addEventListener("click", refreshDashboard);
+const applyBanner=$("#update-banner-apply");
+if(applyBanner) applyBanner.addEventListener("click", reloadNewBuild);
+const laterBanner=$("#update-banner-later");
+if(laterBanner) laterBanner.addEventListener("click", ()=>hideUpdateBanner());
+window.addEventListener("beforeunload", event=>{
+  if(!FORM_DIRTY) return;
+  event.preventDefault();
+  event.returnValue = "";
+});
 renderMeta();
 initFilters();
 render();
+pollStatus();
+setInterval(pollStatus, 5000);
 </script>
 </body>
 </html>

@@ -3,3 +3,6 @@ __pycache__/
 .venv/
 output/
 .DS_Store
+
+data/*
+!data/README.md

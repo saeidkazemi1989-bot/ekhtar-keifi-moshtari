@@ -1,8 +1,9 @@
 """ذخیره‌سازی فرم‌های 8D که کاربر در داشبورد تکمیل می‌کند.
 
-داده‌ها در یک فایل JSON کنار خروجی‌ها نگه داشته می‌شوند
-(`output/8d-forms.json`) تا بین اجراهای مختلف و بین اکسل/ورد/داشبورد
-مشترک باشند.
+داده‌ها بیرون از پوشهٔ خروجی و در `data/8d-forms.json` نگه داشته می‌شوند تا
+با ساخت دوبارهٔ گزارش یا به‌روزرسانی برنامه از بین نروند و بین اکسل، ورد و
+داشبورد مشترک باشند. پیش از هر ذخیره یک نسخهٔ پشتیبان در `data/backups/`
+ساخته می‌شود.
 """
 
 from __future__ import annotations
@@ -12,6 +13,8 @@ from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
+
+from . import storage
 
 # ترتیب نمایش در فرم
 FIELDS: dict[str, str] = {
@@ -34,7 +37,10 @@ STATUS_OPTIONS = ("شروع نشده", "در جریان", "آماده تأیید
 STATUS_CLOSED = "بسته شده"
 
 
-def store_path(output_dir: str | Path) -> Path:
+def store_path(output_dir: str | Path | None = None) -> Path:
+    """مسیر فایل فرم‌ها؛ پیش‌فرض پوشهٔ پایدار `data/` است."""
+    if output_dir is None:
+        return storage.forms_path()
     return Path(output_dir) / "8d-forms.json"
 
 
@@ -58,6 +64,8 @@ def save_all(entries: dict[str, dict], path: str | Path) -> Path:
         "count": len(entries),
         "entries": entries,
     }
+    # نسخهٔ فعلی را پیش از بازنویسی پشتیبان می‌گیریم تا داده‌ای از دست نرود
+    storage.backup(path)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
     return path
 

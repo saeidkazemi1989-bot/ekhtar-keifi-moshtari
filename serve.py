@@ -31,12 +31,14 @@ import sys
 
 ROOT = Path(__file__).resolve().parent
 OUTPUT = ROOT / "output"
-STORE = OUTPUT / "8d-forms.json"
 
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src import eight_d_store  # noqa: E402
+from src import eight_d_store, storage  # noqa: E402
+
+# داده‌های کاربر در data/ نگه داشته می‌شوند (بیرون از پوشهٔ خروجی)
+STORE = storage.forms_path()
 
 MAX_BODY = 200_000
 BUILD_LOG = OUTPUT / "rebuild.log"
@@ -48,7 +50,22 @@ BUILD_STATE: dict = {
     "finished": None,
     "error": "",
     "returncode": None,
+    "trigger": "",
 }
+
+WATCH_ENABLED = True
+WATCH_INTERVAL = 3.0
+WATCH_DEBOUNCE = 2.0
+
+_BUILD_ID_FILE = OUTPUT / "dashboard-data.js"
+
+
+def _build_id() -> str:
+    """شناسهٔ نسخهٔ فعلی داشبورد؛ با هر ساخت موفق عوض می‌شود."""
+    try:
+        return str(_BUILD_ID_FILE.stat().st_mtime_ns)
+    except OSError:
+        return ""
 
 
 def _build_snapshot() -> dict:
@@ -68,6 +85,9 @@ def _build_snapshot() -> dict:
         except OSError:
             log_tail = ""
     snapshot["log"] = log_tail
+    snapshot["buildId"] = _build_id()
+    snapshot["watching"] = WATCH_ENABLED
+    snapshot["dataFile"] = str(STORE)
     return snapshot
 
 
@@ -75,6 +95,11 @@ def _run_build() -> None:
     """اجرای build_report.py در پس‌زمینه؛ پورت سرور بلاک نمی‌شود."""
     code = 1
     error = ""
+    # پیش از هر ساخت، از داده‌های کاربر نسخهٔ پشتیبان می‌گیریم
+    try:
+        storage.backup(STORE)
+    except Exception:  # noqa: BLE001 - پشتیبان نباید مانع ساخت شود
+        pass
     try:
         with BUILD_LOG.open("w", encoding="utf-8") as handle:
             process = subprocess.run(
@@ -107,7 +132,7 @@ def _run_build() -> None:
         )
 
 
-def _start_build() -> bool:
+def _start_build(trigger: str = "manual") -> bool:
     """شروع ساخت؛ اگر ساخت دیگری در جریان است False برمی‌گرداند."""
     with BUILD_LOCK:
         if BUILD_STATE["state"] == "running":
@@ -118,6 +143,7 @@ def _start_build() -> bool:
             finished=None,
             error="",
             returncode=None,
+            trigger=trigger,
         )
     try:
         BUILD_LOG.write_text("", encoding="utf-8")
@@ -125,6 +151,23 @@ def _start_build() -> bool:
         pass
     threading.Thread(target=_run_build, daemon=True).start()
     return True
+
+
+def _watch_loop(stop: threading.Event) -> None:
+    """تغییر فایل‌های ورودی یا کد را می‌بیند و گزارش را خودکار تازه می‌کند."""
+    previous = storage.fingerprint()
+    changed_at = 0.0
+    while not stop.wait(WATCH_INTERVAL):
+        current = storage.fingerprint()
+        if current != previous:
+            previous = current
+            changed_at = time.time()
+            continue
+        if not changed_at or time.time() - changed_at < WATCH_DEBOUNCE:
+            continue
+        changed_at = 0.0
+        if _start_build(trigger="watch"):
+            print("[watch] فایل‌ها تغییر کرد؛ ساخت خودکار گزارش آغاز شد.", flush=True)
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -194,7 +237,7 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         path = unquote(urlparse(self.path).path)
-        if path in {"/api/rebuild", "/api/rebuild/", "/api/rebuild/status"}:
+        if path in {"/api/rebuild", "/api/rebuild/", "/api/rebuild/status", "/api/status"}:
             self._json(_build_snapshot())
             return
         if path in {"/api/8d", "/api/8d/"}:
@@ -239,7 +282,7 @@ class Handler(SimpleHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         path = unquote(urlparse(self.path).path)
         if path in {"/api/rebuild", "/api/rebuild/"}:
-            started = _start_build()
+            started = _start_build(trigger="button")
             payload = _build_snapshot()
             payload.update({"ok": True, "startedNow": started})
             self._json(payload, 200 if started else 409)
@@ -298,7 +341,11 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--no-browser", action="store_true")
+    parser.add_argument("--no-watch", action="store_true", help="خاموش کردن ساخت خودکار پس از تغییر فایل‌ها")
     args = parser.parse_args()
+
+    global WATCH_ENABLED
+    WATCH_ENABLED = not args.no_watch
 
     if not (OUTPUT / "index.html").exists():
         print("داشبورد ساخته نشده است. اول اجرا کنید:  python build_report.py")
@@ -311,9 +358,13 @@ def main() -> int:
     print("=" * 60)
     print(f"  آدرس:            {url}")
     print(f"  ذخیرهٔ فرم‌ها:    {STORE}")
-    print("  به‌روزرسانی داده:  دکمهٔ «⟳ به‌روزرسانی داده‌ها» در داشبورد")
+    print(f"  پوشهٔ داده:       {storage.DATA_DIR}")
+    print("  به‌روزرسانی:      خودکار پس از تغییر فایل‌ها" + ("" if WATCH_ENABLED else " (خاموش)"))
     print("  برای توقف:       Ctrl+C")
     print("=" * 60)
+    stop_watch = threading.Event()
+    if WATCH_ENABLED:
+        threading.Thread(target=_watch_loop, args=(stop_watch,), daemon=True).start()
     if not args.no_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     try:
@@ -321,6 +372,7 @@ def main() -> int:
     except KeyboardInterrupt:
         print("\nمتوقف شد.")
     finally:
+        stop_watch.set()
         server.server_close()
     return 0
 
