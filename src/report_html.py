@@ -264,19 +264,20 @@ TEMPLATE = r"""<!doctype html>
 <title>داشبورد دسته‌بندی اخطارهای کیفی</title>
 <style>
 :root{
-  --bg:#f4f6fa; --card:#ffffff; --ink:#0e1a2b; --muted:#6b7a90; --line:#e6ebf2;
+  --bg:#f5f7fb; --card:#ffffff; --ink:#0d1726; --muted:#6a7890; --line:#e7ecf4;
+  --accent:#3b5bdb; --accent2:#0f9f8f; --accent-soft:#eef2ff;
   --teal:#0f766e; --teal2:#14b8a6; --blue:#2563eb; --violet:#7c3aed; --amber:#d97706;
   --rose:#e11d48; --cyan:#0891b2; --lime:#65a30d; --slate:#64748b;
-  --shadow:0 1px 2px rgba(16,24,40,.04),0 12px 28px -18px rgba(16,24,40,.28);
-  --shadow-sm:0 1px 2px rgba(16,24,40,.05);
+  --shadow:0 1px 2px rgba(13,23,38,.04),0 20px 36px -30px rgba(13,23,38,.5);
+  --shadow-sm:0 1px 2px rgba(13,23,38,.06);
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
 body{
   font-family:"Vazirmatn","IRANSansX","IRANSans","Segoe UI",Tahoma,Arial,sans-serif;
   background:
-    radial-gradient(1100px 520px at 100% -10%, #e6f4f1 0%, rgba(230,244,241,0) 60%),
-    radial-gradient(900px 460px at 0% -10%, #eceffd 0%, rgba(236,239,253,0) 55%),
+    radial-gradient(1200px 560px at 100% -14%, #e8f1ff 0%, rgba(232,241,255,0) 62%),
+    radial-gradient(900px 480px at -6% -12%, #eef1ff 0%, rgba(238,241,255,0) 58%),
     var(--bg);
   background-attachment:fixed;
   color:var(--ink); line-height:1.7; font-size:14px;
@@ -286,22 +287,26 @@ a{color:inherit}
 .topbar{
   position:relative;
   background:
-    radial-gradient(900px 320px at 88% -40%, rgba(20,184,166,.45) 0%, rgba(20,184,166,0) 62%),
-    radial-gradient(700px 280px at 8% 130%, rgba(99,102,241,.32) 0%, rgba(99,102,241,0) 60%),
-    linear-gradient(120deg,#07131f 0%,#0a2530 48%,#0d3f3c 100%);
-  color:#fff; padding:24px 30px; display:flex; gap:20px; align-items:center; justify-content:space-between;
-  flex-wrap:wrap; border-bottom:1px solid rgba(255,255,255,.08);
+    radial-gradient(760px 280px at 92% -70%, rgba(91,124,250,.5) 0%, rgba(91,124,250,0) 66%),
+    radial-gradient(620px 250px at 4% 150%, rgba(15,159,143,.32) 0%, rgba(15,159,143,0) 62%),
+    linear-gradient(118deg,#0a1120 0%,#101d3a 52%,#0c2b34 100%);
+  color:#fff; padding:21px 30px; display:flex; gap:20px; align-items:center; justify-content:space-between;
+  flex-wrap:wrap; border-bottom:1px solid rgba(255,255,255,.07);
 }
-.topbar:after{content:"";position:absolute;inset-inline:0;bottom:0;height:3px;background:linear-gradient(90deg,#2dd4bf 0%,#38bdf8 35%,#a78bfa 70%,#fbbf24 100%);opacity:.85}
+.topbar:before{content:"";position:absolute;inset-inline:0;top:0;height:3px;background:linear-gradient(90deg,#3b5bdb 0%,#5b7cfa 28%,#0f9f8f 62%,#7c3aed 100%)}
+.topbar .dot-live{width:8px;height:8px;border-radius:50%;background:#34d399;box-shadow:0 0 0 3px rgba(52,211,153,.18);display:inline-block}
+.topbar .dot-live.off{background:#8b9bb4;box-shadow:0 0 0 3px rgba(139,155,180,.18)}
 .brand{display:flex; gap:14px; align-items:center}
 .logo{
-  width:52px;height:52px;border-radius:17px;background:linear-gradient(150deg,rgba(45,212,191,.35),rgba(255,255,255,.06));
-  display:grid;place-items:center;font-size:23px;font-weight:800;border:1px solid rgba(153,246,228,.35);
-  box-shadow:0 8px 24px -12px rgba(20,184,166,.8), inset 0 1px 0 rgba(255,255,255,.25);
+  width:52px;height:52px;border-radius:16px;
+  background:linear-gradient(150deg,rgba(91,124,250,.9) 0%,rgba(59,91,219,.85) 45%,rgba(15,159,143,.85) 100%);
+  display:grid;place-items:center;font-size:22px;font-weight:800;color:#fff;
+  border:1px solid rgba(255,255,255,.22);
+  box-shadow:0 18px 30px -18px rgba(59,91,219,1), inset 0 1px 0 rgba(255,255,255,.35);
 }
-.brand h1{font-size:21px;margin:0 0 3px;font-weight:800;letter-spacing:-.35px}
-.brand p{margin:0;color:#a7f3e4;font-size:12.5px;opacity:.92}
-.meta{font-size:12px;color:#b6f0e6;text-align:left;line-height:1.9;opacity:.9}
+.brand h1{font-size:21px;margin:0 0 3px;font-weight:800;letter-spacing:-.4px;color:#fff}
+.brand p{margin:0;color:#a9bce0;font-size:12.5px}
+.meta{font-size:12px;color:#b9c8e6;text-align:left;line-height:1.9}
 .meta b{color:#fff;font-weight:700}
 .tabs{
   position:sticky; top:0; z-index:30; background:rgba(255,255,255,.86); backdrop-filter:saturate(140%) blur(14px);
@@ -314,8 +319,8 @@ a{color:inherit}
 }
 .tab:hover{background:#eef2f7;color:var(--ink)}
 .tab.active{
-  background:linear-gradient(135deg,#0f766e,#0d9488);color:#fff;
-  box-shadow:0 10px 22px -14px rgba(13,148,136,.95), inset 0 1px 0 rgba(255,255,255,.22);
+  background:linear-gradient(135deg,#3b5bdb,#4f6ef0 55%,#0f9f8f);color:#fff;
+  box-shadow:0 12px 22px -16px rgba(59,91,219,.95), inset 0 1px 0 rgba(255,255,255,.25);
 }
 .filters{
   padding:14px 24px; background:rgba(255,255,255,.78); backdrop-filter:blur(8px); border-bottom:1px solid var(--line);
@@ -334,8 +339,8 @@ a{color:inherit}
   box-shadow:var(--shadow-sm);transition:transform .12s,box-shadow .15s,background .15s;
 }
 .btn:hover{background:#f8fafc;transform:translateY(-1px);box-shadow:0 8px 18px -14px rgba(16,24,40,.6)}
-.btn.primary{background:linear-gradient(135deg,#0f766e,#0d9488);border-color:#0f766e;color:#fff}
-.btn.primary:hover{background:linear-gradient(135deg,#0c635c,#0f8f83)}
+.btn.primary{background:linear-gradient(135deg,#3b5bdb,#4f6ef0);border-color:#3b5bdb;color:#fff}
+.btn.primary:hover{background:linear-gradient(135deg,#324fbe,#4664de)}
 .btn.ghost{background:transparent}
 main{padding:20px 22px 40px;max-width:1560px;margin:0 auto}
 .tab-panel{display:none}
@@ -347,28 +352,66 @@ main{padding:20px 22px 40px;max-width:1560px;margin:0 auto}
   padding:15px 17px 14px;box-shadow:var(--shadow);position:relative;overflow:hidden;transition:transform .15s,box-shadow .2s;
 }
 .kpi:hover{transform:translateY(-2px);box-shadow:0 1px 2px rgba(16,24,40,.04),0 18px 34px -22px rgba(16,24,40,.45)}
-.kpi:before{content:"";position:absolute;inset-inline-start:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,#2dd4bf,#0f766e)}
+.kpi[data-kpi]{cursor:pointer}
+.kpi[data-kpi]:after{content:"›";position:absolute;inset-inline-end:12px;top:10px;color:#c9d4e8;font-size:16px;font-weight:700;opacity:0;transition:opacity .15s}
+.kpi[data-kpi]:hover:after{opacity:1}
+.kpi[data-kpi]:focus-visible{outline:2px solid #7c93ff;outline-offset:2px}
+.kpi:before{content:"";position:absolute;inset-inline-start:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,#7c93ff,#3b5bdb)}
 .kpi.blue:before{background:linear-gradient(180deg,#60a5fa,#2563eb)} .kpi.violet:before{background:linear-gradient(180deg,#a78bfa,#7c3aed)}
 .kpi.amber:before{background:linear-gradient(180deg,#fbbf24,#d97706)} .kpi.rose:before{background:linear-gradient(180deg,#fb7185,#e11d48)} .kpi.slate:before{background:linear-gradient(180deg,#94a3b8,#64748b)}
 .kpi .label{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.15px}
 .kpi .value{font-size:25px;font-weight:800;letter-spacing:-.6px;margin-top:3px;font-variant-numeric:tabular-nums}
 .kpi .sub{font-size:10.8px;color:var(--muted);margin-top:2px}
-.cov-strip{
-  display:grid;grid-template-columns:repeat(5,1fr);background:linear-gradient(180deg,#fff,#fbfcfe);
-  border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);margin-bottom:14px;overflow:hidden;
+.cov-card{
+  background:linear-gradient(180deg,#fff,#fbfcff);border:1px solid var(--line);border-radius:18px;
+  box-shadow:var(--shadow);margin-bottom:14px;overflow:hidden;
 }
-.cov-item{padding:13px 18px;min-width:0}
-.cov-item+.cov-item{border-inline-start:1px solid var(--line)}
+.cov-strip{display:grid;grid-template-columns:repeat(5,1fr)}
+.cov-item{
+  padding:13px 18px;min-width:0;cursor:pointer;transition:background .15s,transform .12s;
+  border-inline-start:1px solid var(--line);position:relative;
+}
+.cov-item:first-child{border-inline-start:0}
+.cov-item:hover{background:#f6f8ff}
+.cov-item:hover .v{color:var(--accent)}
+.cov-item:after{content:"›";position:absolute;inset-inline-end:12px;top:50%;transform:translateY(-50%);color:#c6d0e2;font-size:16px;font-weight:700;opacity:0;transition:opacity .15s}
+.cov-item:hover:after{opacity:1}
 .cov-item .k{font-size:10.8px;color:var(--muted);font-weight:700;display:flex;align-items:center;gap:6px}
-.cov-item .v{font-size:21px;font-weight:800;letter-spacing:-.5px;margin-top:2px;font-variant-numeric:tabular-nums}
+.cov-item .v{font-size:22px;font-weight:800;letter-spacing:-.6px;margin-top:2px;font-variant-numeric:tabular-nums;transition:color .15s}
 .cov-item .s{font-size:10.4px;color:var(--muted)}
 .cov-item .cdot{width:7px;height:7px;border-radius:50%;flex:none}
-@media(max-width:900px){.cov-strip{grid-template-columns:repeat(2,1fr)}.cov-item:nth-child(odd){border-inline-start:0}}
+.cov-note{border-top:1px solid var(--line);padding:8px 18px;font-size:10.8px;color:var(--muted);background:#fbfcff;line-height:1.9}
+.cov-note b{color:#4b5b70}
+@media(max-width:900px){.cov-strip{grid-template-columns:repeat(2,1fr)}.cov-item:nth-child(odd){border-inline-start:0}.cov-item:nth-child(n+3){border-top:1px solid var(--line)}}
+
+/* ------------------------------------------------------------ ریزش اطلاعات */
+.drill-hero{
+  position:relative;overflow:hidden;border-radius:18px;padding:18px 18px 16px;margin-bottom:14px;color:#fff;
+  background:radial-gradient(620px 240px at 90% -40%, rgba(91,124,250,.5) 0%, rgba(91,124,250,0) 65%),
+    linear-gradient(135deg,#0b1220 0%,#13224a 52%,#0d2f38 100%);
+  box-shadow:0 24px 44px -34px rgba(11,18,32,.95);border:1px solid rgba(255,255,255,.07);
+}
+.drill-kicker{font-size:10.8px;color:#a9c0f5;font-weight:700;letter-spacing:.2px}
+.drill-title{font-size:19px;font-weight:800;margin:4px 0 2px;letter-spacing:-.3px}
+.drill-sub{font-size:11.8px;color:#c2d1ee;line-height:1.9}
+.drill-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:13px}
+.drill-stat{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:8px 10px}
+.drill-stat .l{font-size:10.2px;color:#b7c7e6}
+.drill-stat .v{font-size:15.5px;font-weight:800;margin-top:1px;font-variant-numeric:tabular-nums}
+.drill-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.drill-card{border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:#fff;min-width:0}
+.drill-card h4{margin:0 0 10px;font-size:12px;color:#334155;font-weight:800;display:flex;align-items:center;gap:7px}
+.drill-card h4:before{content:"";width:4px;height:13px;border-radius:2px;background:linear-gradient(180deg,#7c93ff,#3b5bdb);display:inline-block}
+.drill-table th{font-size:11px}
+.drill-table td{font-size:11.5px}
+.drill-table tbody tr{cursor:pointer}
+.drill-empty{border:1px dashed #d7dfec;border-radius:12px;padding:18px;text-align:center;color:var(--muted);font-size:11.5px;background:#fbfcff}
+@media(max-width:900px){.drill-stats{grid-template-columns:repeat(2,1fr)}.drill-grid{grid-template-columns:1fr}}
 .grid-2{display:grid;grid-template-columns:1.05fr 1fr;gap:14px;margin-bottom:14px}
 .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:17px 18px;box-shadow:var(--shadow);min-width:0}
 .card h3{margin:0 0 13px;font-size:13.6px;font-weight:800;display:flex;align-items:center;gap:8px;letter-spacing:-.1px}
-.card h3:before{content:"";width:6px;height:6px;border-radius:50%;background:linear-gradient(135deg,#2dd4bf,#0f766e);flex:none;box-shadow:0 0 0 3px rgba(20,184,166,.13)}
+.card h3:before{content:"";width:6px;height:6px;border-radius:50%;background:linear-gradient(135deg,#5b7cfa,#3b5bdb);flex:none;box-shadow:0 0 0 3px rgba(59,91,219,.12)}
 .card h3 .hint{font-size:10.5px;color:var(--muted);font-weight:500;margin-inline-start:auto}
 .card .empty{color:var(--muted);font-size:12px;padding:24px;text-align:center}
 .donut-wrap{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
@@ -381,7 +424,7 @@ main{padding:20px 22px 40px;max-width:1560px;margin:0 auto}
 .bars{display:flex;flex-direction:column;gap:9px}
 .bar-row{display:grid;grid-template-columns:minmax(120px,1.3fr) 3fr auto;gap:10px;align-items:center;font-size:12px}
 .bar-row .label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#334155;font-weight:600}
-.bar-row .track{height:9px;background:#edf1f6;border-radius:99px;overflow:hidden;box-shadow:inset 0 1px 2px rgba(16,24,40,.06)}
+.bar-row .track{height:9px;background:#eef2f8;border-radius:99px;overflow:hidden;box-shadow:inset 0 1px 2px rgba(16,24,40,.05)}
 .bar-row .fill{height:100%;border-radius:99px;min-width:2px;transition:width .3s ease;box-shadow:inset 0 1px 0 rgba(255,255,255,.25)}
 .bar-row .val{font-variant-numeric:tabular-nums;color:#475569;font-size:11.5px;min-width:52px;text-align:left;font-weight:700}
 .seg{display:inline-flex;background:#eff3f8;border-radius:999px;padding:3px;gap:2px;margin-bottom:8px}
@@ -392,14 +435,14 @@ main{padding:20px 22px 40px;max-width:1560px;margin:0 auto}
 .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:14px;max-height:640px;background:#fff}
 table{border-collapse:separate;border-spacing:0;width:100%;font-size:12px}
 thead th{
-  position:sticky;top:0;z-index:2;background:linear-gradient(180deg,#f8fafc,#f3f6fa);color:#3b4a5f;font-weight:700;text-align:right;
+  position:sticky;top:0;z-index:2;background:linear-gradient(180deg,#f9fafd,#f3f6fb);color:#3b4a5f;font-weight:700;text-align:right;
   padding:11px 9px;border-bottom:1px solid var(--line);white-space:nowrap;font-size:11.2px;letter-spacing:.1px;
 }
 thead th.sortable{cursor:pointer;user-select:none}
 thead th.sortable:hover{color:var(--teal)}
 tbody td{padding:9px;border-bottom:1px solid #f2f5f9;vertical-align:middle}
-tbody tr:nth-child(even){background:#fcfdfe}
-tbody tr:hover{background:#f3f8f7}
+tbody tr:nth-child(even){background:#fcfdff}
+tbody tr:hover{background:#f4f7ff}
 tbody tr.clickable{cursor:pointer}
 tbody tr:last-child td{border-bottom:0}
 .num{font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -463,10 +506,10 @@ tbody tr:last-child td{border-bottom:0}
 /* ------------------------------------------------------------ کارت اخطار */
 .wm-hero{
   background:
-    radial-gradient(600px 220px at 88% -30%, rgba(20,184,166,.5) 0%, rgba(20,184,166,0) 65%),
-    linear-gradient(135deg,#07131f 0%,#0a2530 50%,#0d3f3c 100%);
+    radial-gradient(620px 240px at 90% -40%, rgba(91,124,250,.5) 0%, rgba(91,124,250,0) 65%),
+    linear-gradient(135deg,#0b1220 0%,#13224a 52%,#0d2f38 100%);
   color:#fff;border-radius:18px;padding:19px 19px 17px;margin-bottom:14px;
-  box-shadow:0 20px 40px -30px rgba(7,19,31,.9);border:1px solid rgba(255,255,255,.07);
+  box-shadow:0 24px 44px -34px rgba(11,18,32,.95);border:1px solid rgba(255,255,255,.07);
 }
 .wm-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
 .wm-serial{font-size:11.5px;color:#ccfbf1;font-weight:700;letter-spacing:.3px}
@@ -483,14 +526,14 @@ tbody tr:last-child td{border-bottom:0}
 .wm-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:0 0 14px;flex-wrap:wrap}
 .wm-tab{border:0;background:transparent;font-family:inherit;font-size:12.5px;font-weight:700;color:var(--muted);padding:9px 13px;border-radius:10px 10px 0 0;cursor:pointer;border-bottom:2px solid transparent;display:inline-flex;align-items:center;gap:6px}
 .wm-tab:hover{background:#f8fafc;color:var(--ink)}
-.wm-tab.active{color:#0f766e;border-bottom-color:#0f766e;background:#f0fdfa}
+.wm-tab.active{color:var(--accent);border-bottom-color:var(--accent);background:#f4f6ff}
 .wm-panel{display:none}
 .wm-panel.active{display:block}
 .wm-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
 .wm-card{border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:#fff}
 .wm-card.full{grid-column:1/-1}
-.wm-card h4{margin:0 0 10px;font-size:12px;color:#0b5f57;display:flex;align-items:center;gap:7px;font-weight:800}
-.wm-card h4::before{content:"";width:4px;height:14px;border-radius:2px;background:linear-gradient(180deg,#2dd4bf,#0f766e);display:inline-block}
+.wm-card h4{margin:0 0 10px;font-size:12px;color:#2f49b8;display:flex;align-items:center;gap:7px;font-weight:800}
+.wm-card h4::before{content:"";width:4px;height:14px;border-radius:2px;background:linear-gradient(180deg,#5b7cfa,#3b5bdb);display:inline-block}
 .wm-rows{display:grid;grid-template-columns:118px 1fr;gap:7px 10px;font-size:12.5px}
 .wm-rows .k{color:var(--muted);font-weight:600}
 .wm-rows .v{color:var(--ink);word-break:break-word}
@@ -505,7 +548,7 @@ tbody tr:last-child td{border-bottom:0}
 .wm-text{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:11px 13px;font-size:12.5px;line-height:1.9;white-space:pre-wrap;color:#0f172a}
 .wm-empty{border:1px dashed #cbd5e1;border-radius:14px;padding:22px;text-align:center;color:var(--muted);font-size:12.5px;background:#f8fafc;line-height:2}
 .wm-source{display:flex;gap:9px;align-items:flex-start;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;border-radius:12px;padding:9px 12px;font-size:11.5px;margin-bottom:12px;line-height:1.8}
-.wm-link{background:none;border:0;color:#0f766e;font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer;text-decoration:underline;padding:0}
+.wm-link{background:none;border:0;color:var(--accent);font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer;text-decoration:underline;padding:0}
 @media(max-width:760px){.wm-grid{grid-template-columns:1fr}.wm-stats{grid-template-columns:repeat(2,1fr)}.wm-badges{max-width:100%;justify-content:flex-start}.wm-rows{grid-template-columns:94px 1fr}}
 footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
 @media(max-width:1200px){.kpi-grid{grid-template-columns:repeat(3,1fr)}.filters{grid-template-columns:repeat(4,1fr)}.grid-3{grid-template-columns:1fr}}
@@ -532,8 +575,8 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
   </div>
   <div class="meta" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:flex-end">
     <div id="meta"></div>
-    <button class="btn" id="refresh-data" title="ساخت دوبارهٔ گزارش از فایل‌های ورودی (داده‌های ذخیره‌شده حفظ می‌شوند)" style="background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.35);padding:9px 14px;white-space:nowrap">⟳ به‌روزرسانی</button>
-    <span id="auto-refresh-badge" class="tiny" style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:5px 10px;color:#ccfbf1" title="اگر فایل‌های ورودی یا برنامه تغییر کند، گزارش خودکار تازه می‌شود"><span class="dot-live off"></span><span id="auto-refresh-text">به‌روزرسانی خودکار</span></span>
+    <button class="btn" id="refresh-data" title="ساخت دوبارهٔ گزارش از فایل‌های ورودی (داده‌های ذخیره‌شده حفظ می‌شوند)" style="background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.28);padding:9px 15px;white-space:nowrap;backdrop-filter:blur(6px);box-shadow:inset 0 1px 0 rgba(255,255,255,.18)">⟳ به‌روزرسانی</button>
+    <span id="auto-refresh-badge" class="tiny" style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:5px 11px;color:#d6e2ff" title="اگر فایل‌های ورودی یا برنامه تغییر کند، گزارش خودکار تازه می‌شود"><span class="dot-live off"></span><span id="auto-refresh-text">به‌روزرسانی خودکار</span></span>
   </div>
 </header>
 <nav class="tabs" id="tabs">
@@ -572,7 +615,10 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
 <main>
   <section class="tab-panel active" id="tab-overview">
     <div class="kpi-grid" id="kpis"></div>
-    <div class="cov-strip" id="coverage-strip"></div>
+    <div class="cov-card">
+      <div class="cov-strip" id="coverage-strip"></div>
+      <div class="cov-note" id="coverage-note"></div>
+    </div>
     <div class="grid-3">
       <div class="card">
         <h3>ریشهٔ ایراد <span class="hint">کلیک روی هر ریشه = باز شدن همان اخطارها</span></h3>
@@ -825,7 +871,7 @@ const reviewBadge = r => r.review ? '<span class="badge red">بازبینی</spa
 const catalogBadge = r => r.inCatalog ? '<span class="badge green">کاتالوگ</span>' : (r.inScope ? '<span class="badge slate">سایر</span>' : '<span class="badge slate">خارج</span>');
 
 const state = {group:"",family:"",product:"",car:"",grade:"",status:"",priority:"",year:"",from:"",to:"",q:"",tab:"overview",warningSort:"priority",
-  review:"",branch:"",defect:"",root:"",rootPart:"",defectCat:"all",productQ:"",warningQ:"",reviewQ:"",defectQ:"",formQ:"",formStatus:"",formScope:"working",paretoQ:"",
+  review:"",branch:"",defect:"",root:"",rootPart:"",quickFilter:"",defectCat:"all",productQ:"",warningQ:"",reviewQ:"",defectQ:"",formQ:"",formStatus:"",formScope:"working",paretoQ:"",
   page:1,pageSize:25,productSort:{key:"warnings",dir:-1},trendMode:"year"};
 let currentProducts = [];
 let currentWarnings = [];
@@ -854,6 +900,8 @@ function applyFilters(){
     if(state.defect && r.defect!==state.defect) return false;
     if(state.root && r.rootCause!==state.root) return false;
     if(state.rootPart && r.rootPart!==state.rootPart) return false;
+    if(state.quickFilter==="review" && !isUnderReview(r)) return false;
+    if(state.quickFilter==="notreceived" && !isNotReceived(r)) return false;
     if(state.car && r.car!==state.car) return false;
     if(state.grade && r.grade!==state.grade) return false;
     if(state.status==="open" && !r.open) return false;
@@ -928,7 +976,20 @@ function renderKpis(rows){
     ["پوشش گروه‌بندی",pct(total?inScope/total:0),`${fmt(inScope)} ردیف در دامنه`,"rose"],
     ["اخطارهای باز",fmt(open),`${fmt(auto)} خودکار خاتمه · ${fmt(reviewed)} برگه بررسی (${pct(total?reviewed/total:0)})`,"slate"]
   ];
-  $("#kpis").innerHTML=cards.map(([l,v,s,c])=>`<div class="kpi ${c}"><div class="label">${l}</div><div class="value">${v}</div><div class="sub">${s}</div></div>`).join("");
+  $("#kpis").innerHTML=cards.map(([l,v,s,c],i)=>`<div class="kpi ${c}" data-kpi="${i}" role="button" tabindex="0" title="نمایش ریزش اطلاعات"><div class="label">${l}</div><div class="value">${v}</div><div class="sub">${s}</div></div>`).join("");
+  const drills=[
+    ["همهٔ اخطارهای فیلترشده","مبنای گزارش؛ با فیلترهای بالای صفحه هماهنگ است",rows,()=>{state.quickFilter="";}],
+    ["قطعات معیوب","جمع تعداد قطعات معیوب همین ردیف‌ها",rows,()=>{state.quickFilter="";}],
+    ["نمرهٔ منفی مرجع","مجموع امتیاز منفی همین ردیف‌ها",rows,()=>{state.quickFilter="";}],
+    ["محصولات درگیر",`${fmt(products)} محصول متمایز در ردیف‌های فیلترشده`,rows,()=>{state.quickFilter="";}],
+    ["پوشش گروه‌بندی",`${fmt(inScope)} ردیف در دامنهٔ گروه‌بندی`,rows.filter(r=>r.inScope),null],
+    ["اخطارهای باز",`${fmt(open)} اخطار باز در فیلتر فعلی`,rows.filter(r=>r.open),()=>{state.status="open";state.quickFilter="";}]
+  ];
+  $$("#kpis [data-kpi]").forEach(card=>{
+    const [title,sub,list,apply]=drills[Number(card.dataset.kpi)];
+    card.addEventListener("click",()=>openBreakdown(title,sub,list,{apply:apply||undefined}));
+    card.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();card.click();}});
+  });
 }
 const HIDDEN_ROOTS=["اعلام نشده","عدم دریافت قطعه"];
 const isHiddenRoot=name=>HIDDEN_ROOTS.indexOf(name)>=0;
@@ -937,25 +998,37 @@ function rootText(r){
   if(!name||isHiddenRoot(name)) return "—";
   return name;
 }
+const isUnderReview=r=>!!r.open && (r.status==="اقدام كوتاه مدت"||r.status==="اقدام ميان مدت");
+const isNotReceived=r=>!!r.open && !isUnderReview(r);
 function renderCoverage(rows){
   const el=$("#coverage-strip"); if(!el) return;
-  const total=rows.length||1;
+  const total=rows.length;
   const open=rows.filter(r=>r.open).length;
-  const review=rows.filter(r=>r.open && (r.status==="اقدام كوتاه مدت"||r.status==="اقدام ميان مدت")).length;
+  const review=rows.filter(isUnderReview).length;
+  const notReceived=rows.filter(isNotReceived).length;
+  const closed=rows.filter(r=>!r.open).length;
   const unknown=rows.filter(r=>r.rootCause==="اعلام نشده").length;
-  const notReceived=rows.filter(r=>r.rootCause==="عدم دریافت قطعه").length;
+  const base=total||1;
   const items=[
-    ["کل اخطارهای فیلترشده",total,"مبنای درصدها","#0f766e",100],
-    ["باز",open,pct(open/total)+" از کل","#e11d48",open/total],
-    ["در حال بررسی",review,"باز با اقدام کوتاه/میان‌مدت","#d97706",review/total],
-    ["علت اعلام‌نشده",unknown,pct(unknown/total)+" از کل","#64748b",unknown/total],
-    ["قطعه دریافت‌نشده",notReceived,pct(notReceived/total)+" از کل","#7c3aed",notReceived/total]
+    ["کل اخطارها",total,"مبنای همهٔ درصدها","#3b5bdb",()=>rows,null],
+    ["باز",open,pct(open/base)+" از کل","#e11d48",()=>rows.filter(r=>r.open),()=>{state.status="open";state.quickFilter="";}],
+    ["در حال بررسی",review,"باز با اقدام کوتاه/میان‌مدت","#d97706",()=>rows.filter(isUnderReview),()=>{state.status="";state.quickFilter="review";}],
+    ["دریافت نشده",notReceived,"باز بدون اقدام ثبت‌شده","#7c3aed",()=>rows.filter(isNotReceived),()=>{state.status="";state.quickFilter="notreceived";}],
+    ["خاتمه‌یافته",closed,pct(closed/base)+" از کل","#0f9f8f",()=>rows.filter(r=>!r.open),()=>{state.status="closed";state.quickFilter="";}]
   ];
-  el.innerHTML=items.map(([k,v,sub,color,share])=>`<div class="cov-item" title="${esc(sub)}">
+  el.innerHTML=items.map(([k,v,sub,color],index)=>`<div class="cov-item" data-cov="${index}" title="نمایش جزئیات ${esc(k)}">
     <div class="k"><span class="cdot" style="background:${color}"></span>${esc(k)}</div>
     <div class="v">${fmt(v)}</div>
     <div class="s">${esc(sub)}</div>
   </div>`).join("");
+  $$("#coverage-strip [data-cov]").forEach(item=>{
+    const [k,,sub,,pick,apply]=items[Number(item.dataset.cov)];
+    item.addEventListener("click",()=>openBreakdown(k,sub,pick(),{apply}));
+  });
+  const note=$("#coverage-note");
+  if(note) note.innerHTML=unknown
+    ? `<b>${fmt(unknown)}</b> اخطار (${pct(unknown/base)}) در متن خود علتی اعلام نکرده‌اند و «قطعه دریافت‌نشده» هم جدا شمرده شده است؛ این دو فقط همین‌جا نمایش داده می‌شوند و در نمودار ریشه و فیلترها نمی‌آیند. روی هر کارت بزنید تا فهرست و ریزش همان گروه باز شود.`
+    : `روی هر کارت بزنید تا فهرست و ریزش همان گروه باز شود.`;
 }
 function rootRows(rows){
   const map=new Map();
@@ -1000,19 +1073,93 @@ function repeatRows(rows){
   return Array.from(map.values()).map(i=>({...i,products:i.products.size}))
     .sort((a,b)=>b.maxRepeat-a.maxRepeat || b.warnings-a.warnings);
 }
+const shorten=(v,n)=>{const t=String(v==null?"":v);return t.length>n?t.slice(0,n)+"…":t;};
+function drillBars(items,color,valueKey="warnings"){
+  if(!items||!items.length) return '<div class="drill-empty">داده‌ای برای نمایش نیست</div>';
+  const max=Math.max(1,...items.map(i=>Number(i[valueKey]||0)));
+  return items.map(i=>`<div class="bar-row"><div class="label" title="${esc(i.name)}">${esc(i.name)}</div>
+    <div class="track"><div class="fill" style="width:${Number(i[valueKey]||0)/max*100}%;background:${color}"></div></div>
+    <div class="val">${fmt(i[valueKey]||0)}</div></div>`).join("");
+}
+function openBreakdown(title,subtitle,rows,opts){
+  opts=opts||{};
+  rows=rows||[];
+  const box=$(".modal-box"); if(box) box.scrollTop=0;
+  const total=rows.length;
+  const open=rows.filter(r=>r.open).length;
+  const review=rows.filter(isUnderReview).length;
+  const qty=sum(rows,"qty");
+  const products=new Set(rows.map(r=>r.product)).size;
+  const roots=rootRows(rows).filter(i=>!isHiddenRoot(i.name)).slice(0,7);
+  const parts=paretoRows(rows).filter(i=>i.name!=="نامشخص").slice(0,7);
+  const defects=defectRows(rows).slice(0,7);
+  const list=rows.slice().sort(byPriority).slice(0,40);
+  $("#modal-title").textContent=title;
+  $("#modal-body").innerHTML=`
+    <div class="drill-hero">
+      <div class="drill-kicker">ریزش اطلاعات</div>
+      <div class="drill-title">${esc(title)}</div>
+      <div class="drill-sub">${esc(subtitle||"")}</div>
+      <div class="drill-stats">
+        ${[["اخطار",fmt(total)],["باز",fmt(open)],["در حال بررسی",fmt(review)],["قطعه معیوب",fmt(qty)],["محصول",fmt(products)]]
+          .map(([l,v])=>`<div class="drill-stat"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("")}
+      </div>
+    </div>
+    <div class="drill-grid">
+      <div class="drill-card"><h4>ریشهٔ ایراد</h4>${drillBars(roots,"#3b5bdb")}</div>
+      <div class="drill-card"><h4>قطعهٔ ریشه (پارتو)</h4>${drillBars(parts,"#0f9f8f")}</div>
+    </div>
+    <div class="drill-grid">
+      <div class="drill-card"><h4>پرتکرارترین ایراد مشتری</h4>${drillBars(defects,"#e11d48")}</div>
+      <div class="drill-card"><h4>وضعیت اخطارها</h4>${drillBars([
+        {name:"در حال بررسی",warnings:review},
+        {name:"دریافت نشده",warnings:open-review},
+        {name:"خاتمه‌یافته",warnings:total-open}
+      ].filter(i=>i.warnings>0),"#7c3aed")}</div>
+    </div>
+    <div class="drill-card">
+      <h4>ردیف‌های همین گروه (${fmt(Math.min(40,total))} از ${fmt(total)}) — برای دیدن پروندهٔ اخطار کلیک کنید</h4>
+      ${list.length?`<div class="table-wrap drill-table" style="max-height:360px"><table><thead><tr>
+        <th>سریال</th><th>تاریخ</th><th>شرح قطعه</th><th>ایراد مشتری</th><th>ریشه</th><th>وضعیت</th></tr></thead>
+        <tbody>${list.map(r=>`<tr data-drill-id="${r.id}">
+          <td class="num">${esc(faDigits(r.id))}</td><td class="tiny muted">${esc(faDigits(r.date))}</td>
+          <td class="tiny" title="${esc(r.part)}">${esc(shorten(r.part,34))}</td>
+          <td class="tiny" title="${esc(r.defect)}">${esc(shorten(r.defect,38)||"—")}</td>
+          <td class="tiny">${rootText(r)==="—"?'<span class="muted">—</span>':`<span class="badge amber">${esc(rootText(r))}</span>`}</td>
+          <td>${statusBadge(r)}</td></tr>`).join("")}</tbody></table></div>`:'<div class="drill-empty">ردیفی در این گروه نیست.</div>'}
+    </div>`;
+  $$("#modal-body [data-drill-id]").forEach(tr=>tr.addEventListener("click",()=>openWarning(Number(tr.dataset.drillId))));
+  const foot=$("#modal-foot");
+  if(foot) foot.innerHTML=`<div class="muted tiny">${fmt(total)} اخطار در این گروه</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn primary" id="drill-list">نمایش در فهرست اخطارها</button>
+      <button class="btn" id="drill-close">بستن</button>
+    </div>`;
+  const closeBtn=$("#drill-close");
+  if(closeBtn) closeBtn.addEventListener("click",()=>$("#modal").classList.add("hidden"));
+  const go=$("#drill-list");
+  if(go) go.addEventListener("click",()=>{
+    if(typeof opts.apply==="function") opts.apply();
+    const statusSel=$("#f-status"); if(statusSel) statusSel.value=state.status||"";
+    state.page=1; switchTab("warnings"); render();
+    $("#modal").classList.add("hidden");
+  });
+  $("#modal").classList.remove("hidden");
+}
 function goRoot(name){
-  state.root=name; state.page=1;
-  const sel=$("#f-root"); if(sel) sel.value=name;
-  switchTab("warnings"); render();
+  openBreakdown(`ریشهٔ ایراد: ${name}`,"همهٔ اخطارهایی که متنشان این ریشه را نشان می‌دهد",
+    applyFilters().filter(r=>r.rootCause===name),
+    {apply:()=>{state.root=name;state.page=1;const sel=$("#f-root");if(sel)sel.value=name;}});
 }
 function goRootPart(name){
-  state.rootPart=name; state.page=1;
-  const sel=$("#f-rootpart"); if(sel) sel.value=name;
-  switchTab("warnings"); render();
+  openBreakdown(`قطعهٔ ریشه: ${name}`,"اخطارهایی که قطعهٔ معیوبشان این قطعه است (پارتو)",
+    applyFilters().filter(r=>r.rootPart===name),
+    {apply:()=>{state.rootPart=name;state.page=1;const sel=$("#f-rootpart");if(sel)sel.value=name;}});
 }
 function goDefect(name){
-  state.defect=name; state.page=1;
-  switchTab("warnings"); render();
+  openBreakdown(`ایراد مشتری: ${name}`,"همهٔ اخطارهایی که همین ایراد برایشان ثبت شده است",
+    applyFilters().filter(r=>r.defect===name),
+    {apply:()=>{state.defect=name;state.page=1;}});
 }
 function renderRootPanel(rows){
   const all=rootRows(rows);
@@ -1075,18 +1222,21 @@ function renderActiveFilters(){
   if(state.root) chips.push(`<span class="fchip">ریشه: ${esc(state.root)}<button data-clear="root" title="حذف فیلتر">×</button></span>`);
   if(state.rootPart) chips.push(`<span class="fchip">قطعهٔ ریشه: ${esc(state.rootPart)}<button data-clear="rootPart" title="حذف فیلتر">×</button></span>`);
   if(state.defect) chips.push(`<span class="fchip">ایراد مشتری: ${esc(state.defect)}<button data-clear="defect" title="حذف فیلتر">×</button></span>`);
+  if(state.quickFilter) chips.push(`<span class="fchip">${state.quickFilter==="review"?"فقط در حال بررسی":"فقط دریافت‌نشده"}<button data-clear="quickFilter" title="حذف فیلتر">×</button></span>`);
   if(!chips.length){ el.innerHTML=""; return; }
   el.innerHTML=chips.join("")+`<button class="fchip clear" id="clear-linked" style="cursor:pointer">پاک‌کردن فیلترهای لینک‌شده</button>`;
   $$("#warnings-active-filters [data-clear]").forEach(btn=>btn.addEventListener("click",()=>{
-    state[btn.dataset.clear]="";
+    const key=btn.dataset.clear;
+    state[key]="";
     const map={root:"#f-root",rootPart:"#f-rootpart"};
-    if(map[btn.dataset.clear]){ const sel=$(map[btn.dataset.clear]); if(sel) sel.value=""; }
+    if(map[key]){ const sel=$(map[key]); if(sel) sel.value=""; }
+    if(key==="quickFilter"){ state.status=""; const s=$("#f-status"); if(s) s.value=""; }
     state.page=1; render();
   }));
   const clear=$("#clear-linked");
   if(clear) clear.addEventListener("click",()=>{
-    state.root=""; state.rootPart=""; state.defect=""; state.page=1;
-    $("#f-root").value=""; $("#f-rootpart").value="";
+    state.root=""; state.rootPart=""; state.defect=""; state.quickFilter=""; state.status=""; state.page=1;
+    $("#f-root").value=""; $("#f-rootpart").value=""; $("#f-status").value="";
     render();
   });
 }
@@ -2020,7 +2170,7 @@ function initFilters(){
   let timer=null;
   $("#f-q").addEventListener("input",e=>{clearTimeout(timer);timer=setTimeout(()=>{state.q=e.target.value;state.page=1;render();},180);});
   $("#reset").addEventListener("click",()=>{
-    Object.assign(state,{group:"",family:"",product:"",branch:"",defect:"",root:"",rootPart:"",car:"",grade:"",status:"",priority:"",year:"",from:"",to:"",q:"",review:"",productQ:"",warningQ:"",reviewQ:"",defectQ:"",formQ:"",formStatus:"",page:1,warningSort:"priority"});
+    Object.assign(state,{group:"",family:"",product:"",branch:"",defect:"",root:"",rootPart:"",quickFilter:"",car:"",grade:"",status:"",priority:"",year:"",from:"",to:"",q:"",review:"",productQ:"",warningQ:"",reviewQ:"",defectQ:"",formQ:"",formStatus:"",page:1,warningSort:"priority"});
     $("#f-q").value=""; $("#product-search").value=""; $("#warning-search").value=""; $("#review-search").value="";
     $("#defect-search").value=""; $("#form-search").value=""; $("#pareto-search").value=""; state.paretoQ=""; $("#form-status-filter").value=""; $("#f-branch").value=""; $("#form-scope").value="working";
     syncSelects(); refreshMonthSelects();
@@ -2051,7 +2201,12 @@ function initFilters(){
   $("#form-export").addEventListener("click",exportFormCsv);
   $("#form-export-json").addEventListener("click",exportFormJson);
   FORM_STORE.init().then(()=>{renderFormsTab(applyFilters());});
-  $$("#tabs .tab").forEach(btn=>btn.addEventListener("click",()=>switchTab(btn.dataset.tab)));
+  $$("#tabs .tab").forEach(btn=>btn.addEventListener("click",()=>{
+    // فیلتر سریع «در حال بررسی/دریافت نشده» فقط برای فهرست است؛ با برگشتن به
+    // نمای کلی پاک می‌شود تا نوار جمع‌بندی همیشه کل اخطارهای فیلترشده را نشان دهد
+    if(btn.dataset.tab==="overview" && state.quickFilter){ state.quickFilter=""; render(); }
+    switchTab(btn.dataset.tab);
+  }));
   $$("#trend-toggle button").forEach(btn=>btn.addEventListener("click",()=>{
     setTrendMode(btn.dataset.mode);
     renderTrend($("#trend"),applyFilters());
