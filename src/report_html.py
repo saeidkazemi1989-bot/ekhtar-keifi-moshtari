@@ -107,10 +107,14 @@ def _payload(
                 "mtAction": _clean_text(row["وضعیت اقدام میان مدت"]),
                 "cause": _clean_text(row.get("آنالیز علت ایراد", "")),
                 "action": _clean_text(row.get("شرح اقدام اصلاحی", "")),
-                "origin": _clean_text(row.get("منشاء ایراد", "")),
+                "reviewOrigin": _clean_text(row.get("منشاء ایراد", "")),
                 "claimNo": _clean_text(row.get("شماره کلیم", "")),
                 "orangeCard": _clean_text(row.get("شماره کارت نارنجی", "")),
                 "reviewCategory": _clean_text(row.get("دسته محصول (بررسی)", "")),
+                "reviewDealGroup": _clean_text(row.get("گروه بازرگانی (بررسی)", "")),
+                "supplier": _clean_text(row.get("تامین‌کننده (بررسی)", "")),
+                "reviewPeriod": _clean_text(row.get("دوره (بررسی)", "")),
+                "reviewNotes": _clean_text(row.get("توضیحات (بررسی)", "")),
                 "claims": int(row.get("تعداد کلیم") or 0) if pd.notna(row.get("تعداد کلیم")) else 0,
                 "claimsAccepted": int(row.get("تعداد کلیم پذیرفته‌شده") or 0) if pd.notna(row.get("تعداد کلیم پذیرفته‌شده")) else 0,
                 "hasReview": row.get("دارای برگه بررسی") == "بله",
@@ -404,16 +408,51 @@ tbody tr:last-child td{border-bottom:0}
 .update-banner .dot-live{width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.18)}
 .update-banner .dot-live.off{background:#94a3b8;box-shadow:0 0 0 3px rgba(148,163,184,.18)}
 .toast.show{opacity:1}
-.modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:grid;place-items:center;z-index:100;padding:18px}
+.modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:grid;place-items:center;z-index:100;padding:18px;backdrop-filter:blur(3px)}
 .modal.hidden{display:none}
-.modal-box{background:#fff;border-radius:18px;max-width:820px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 30px 80px rgba(0,0,0,.3)}
-.modal-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#fff;z-index:2}
-.modal-head h2{margin:0;font-size:16px}
-.modal-body{padding:18px 20px}
+.modal-box{background:#fff;border-radius:20px;max-width:1040px;width:100%;max-height:92vh;overflow:auto;box-shadow:0 30px 80px rgba(0,0,0,.35)}
+.modal-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#fff;z-index:3}
+.modal-head h2{margin:0;font-size:14px;color:var(--muted);font-weight:700}
+.modal-body{padding:16px 20px 22px}
+.modal-foot:empty{display:none}
+.modal-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 20px;border-top:1px solid var(--line);position:sticky;bottom:0;background:#fff;z-index:3;font-size:11.5px;color:var(--muted)}
 .kv{display:grid;grid-template-columns:140px 1fr;gap:8px 12px;font-size:12.5px}
 .kv .k{color:var(--muted);font-weight:600}
 .kv .v{color:var(--ink)}
 .note-box{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:12px;margin-top:12px;white-space:pre-wrap}
+/* ------------------------------------------------------------ کارت اخطار */
+.wm-hero{background:linear-gradient(135deg,#0b3b38 0%,#0f766e 55%,#0d9488 100%);color:#fff;border-radius:16px;padding:18px 18px 16px;margin-bottom:14px}
+.wm-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.wm-serial{font-size:11.5px;color:#ccfbf1;font-weight:700;letter-spacing:.3px}
+.wm-serial b{font-size:21px;color:#fff;letter-spacing:0;margin-right:2px}
+.wm-meta{font-size:11.5px;color:#ccfbf1;margin-top:3px}
+.wm-defect{font-size:17px;font-weight:800;line-height:1.6;margin:11px 0 3px}
+.wm-part{font-size:12.5px;color:#ccfbf1}
+.wm-badges{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:52%}
+.wm-badges .badge{box-shadow:0 1px 3px rgba(0,0,0,.18)}
+.wm-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px}
+.wm-stat{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:12px;padding:8px 10px}
+.wm-stat .l{font-size:10.5px;color:#ccfbf1}
+.wm-stat .v{font-size:14.5px;font-weight:800;margin-top:1px}
+.wm-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:0 0 14px;flex-wrap:wrap}
+.wm-tab{border:0;background:transparent;font-family:inherit;font-size:12.5px;font-weight:700;color:var(--muted);padding:9px 13px;border-radius:10px 10px 0 0;cursor:pointer;border-bottom:2px solid transparent;display:inline-flex;align-items:center;gap:6px}
+.wm-tab:hover{background:#f8fafc;color:var(--ink)}
+.wm-tab.active{color:#0f766e;border-bottom-color:#0f766e;background:#f0fdfa}
+.wm-panel{display:none}
+.wm-panel.active{display:block}
+.wm-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.wm-card{border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:#fff}
+.wm-card.full{grid-column:1/-1}
+.wm-card h4{margin:0 0 10px;font-size:12px;color:#0f766e;display:flex;align-items:center;gap:7px;font-weight:800}
+.wm-card h4::before{content:"";width:4px;height:14px;border-radius:2px;background:#14b8a6;display:inline-block}
+.wm-rows{display:grid;grid-template-columns:118px 1fr;gap:7px 10px;font-size:12.5px}
+.wm-rows .k{color:var(--muted);font-weight:600}
+.wm-rows .v{color:var(--ink);word-break:break-word}
+.wm-text{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:11px 13px;font-size:12.5px;line-height:1.9;white-space:pre-wrap;color:#0f172a}
+.wm-empty{border:1px dashed #cbd5e1;border-radius:14px;padding:22px;text-align:center;color:var(--muted);font-size:12.5px;background:#f8fafc;line-height:2}
+.wm-source{display:flex;gap:9px;align-items:flex-start;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;border-radius:12px;padding:9px 12px;font-size:11.5px;margin-bottom:12px;line-height:1.8}
+.wm-link{background:none;border:0;color:#0f766e;font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer;text-decoration:underline;padding:0}
+@media(max-width:760px){.wm-grid{grid-template-columns:1fr}.wm-stats{grid-template-columns:repeat(2,1fr)}.wm-badges{max-width:100%;justify-content:flex-start}.wm-rows{grid-template-columns:94px 1fr}}
 footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
 @media(max-width:1200px){.kpi-grid{grid-template-columns:repeat(3,1fr)}.filters{grid-template-columns:repeat(4,1fr)}.grid-3{grid-template-columns:1fr}}
 @media(max-width:760px){
@@ -449,7 +488,7 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
   <button class="tab" data-tab="families">خانواده‌ها</button>
   <button class="tab" data-tab="products">محصولات</button>
   <button class="tab" data-tab="warnings">فهرست اخطارها</button>
-  <button class="tab" data-tab="reviews">بررسی اخطارها</button>
+  <button class="tab" data-tab="reviews">برگه‌های بررسی مشتری</button>
   <button class="tab" data-tab="defects">ایرادهای مشتری</button>
   <button class="tab" data-tab="forms8d">فرم‌های 8D</button>
   <button class="tab" data-tab="quality">کیفیت تطبیق</button>
@@ -542,6 +581,7 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
   </section>
 
   <section class="tab-panel" id="tab-reviews">
+    <div class="quality-note" id="review-link-note" style="margin:0 0 12px"></div>
     <div class="kpi-grid" id="review-kpis" style="grid-template-columns:repeat(4,1fr)"></div>
     <div class="grid-2">
       <div class="card"><h3>منشا ایراد <span class="hint">بر اساس برگه‌های بررسی</span></h3><div class="bars" id="origin-bars"></div></div>
@@ -549,7 +589,7 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
     </div>
     <div class="card">
       <div class="toolbar">
-        <h3 style="margin:0">برگه‌های بررسی اخطار <span class="hint" id="review-count"></span></h3>
+        <h3 style="margin:0">برگه‌های بررسی مشتری <span class="hint" id="review-count"></span></h3>
         <div class="right">
           <div class="search-mini"><input id="review-search" placeholder="جستجو در علت ایراد/اقدام/شماره اخطار"></div>
           <button class="btn" id="review-export">خروجی CSV بررسی‌ها</button>
@@ -650,6 +690,7 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
   <div class="modal-box">
     <div class="modal-head"><h2 id="modal-title">جزئیات</h2><button class="btn" id="modal-close">بستن</button></div>
     <div class="modal-body" id="modal-body"></div>
+    <div class="modal-foot" id="modal-foot"></div>
   </div>
 </div>
 
@@ -965,14 +1006,35 @@ function renderReviewKpis(rows){
 function reviewRows(rows){
   const q = state.reviewQ.trim().toLowerCase();
   let items = rows.filter(r=>r.hasReview);
-  if(q) items = items.filter(r=>[r.id,r.part,r.cause,r.action,r.origin,r.product,r.claimNo].join(" ").toLowerCase().includes(q));
+  if(q) items = items.filter(r=>[r.id,r.part,r.cause,r.action,r.reviewOrigin,r.product,r.claimNo].join(" ").toLowerCase().includes(q));
   return items;
 }
 
+function renderReviewLinkNote(rows){
+  const el=$("#review-link-note"); if(!el) return;
+  const sources=DATA.meta.sources||{};
+  const reviewed=rows.filter(r=>r.hasReview).length;
+  const total=rows.length||1;
+  const unmatched=(DATA.unmatchedReview||[]).length;
+  el.innerHTML=`<b>برگهٔ بررسی، بخشی از خود اخطار است:</b> هر برگه از فایل <b>${esc(sources.review||"C_Plus")}</b> با کلید <b>شماره اخطار</b> به همان ردیف فهرست اخطارها متصل شده است؛ دادهٔ جداگانه‌ای نیست.
+    از <b>${fmt(total)}</b> اخطار فیلترشده، <b>${fmt(reviewed)}</b> برگهٔ بررسی متصل دارند (${pct(reviewed/total)}).
+    ${unmatched?`<span class="muted tiny">${fmt(unmatched)} برگه در فایل مشتری شماره اخطار متناظر ندارد و در «کیفیت تطبیق» فهرست شده است.</span>`:""}
+    <div style="margin-top:8px;display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+      <button class="wm-link" id="review-to-warnings">نمایش همین اخطارها در فهرست اخطارها ←</button>
+      <span class="muted tiny">روی هر ردیف کلیک کنید تا پروندهٔ همان اخطار با بخش «برگهٔ بررسی مشتری» باز شود.</span>
+    </div>`;
+  const jump=$("#review-to-warnings");
+  if(jump) jump.addEventListener("click",()=>{
+    state.review="yes"; state.page=1;
+    const sel=$("#f-review"); if(sel) sel.value="yes";
+    switchTab("warnings"); render();
+  });
+}
 function renderReviews(rows){
   renderReviewKpis(rows);
+  renderReviewLinkNote(rows);
   const reviewed = rows.filter(r=>r.hasReview);
-  const origins = groupAgg(reviewed,"origin").sort((a,b)=>b.warnings-a.warnings);
+  const origins = groupAgg(reviewed,"reviewOrigin").sort((a,b)=>b.warnings-a.warnings);
   renderBars($("#origin-bars"), origins.slice(0,10), "warnings", ()=>"#7c3aed", i=>i.name||"ثبت نشده");
   const cats = groupAgg(reviewed,"reviewCategory").sort((a,b)=>b.warnings-a.warnings);
   renderBars($("#category-bars"), cats.slice(0,10), "warnings", ()=>"#0891b2", i=>i.name||"ثبت نشده");
@@ -985,18 +1047,19 @@ function renderReviews(rows){
   const start=(state.page-1)*state.pageSize;
   const page = items.slice(start, start+state.pageSize);
   $("#reviews-table").innerHTML=`<thead><tr>
-    <th>سریال</th><th>تاریخ</th><th>خودرو</th><th>شرح قطعه</th><th>محصول</th><th>آنالیز علت ایراد</th><th>اقدام اصلاحی</th><th>منشاء</th><th>کلیم</th><th>فرم 8D</th><th>وضعیت</th></tr></thead>
+    <th>شماره اخطار</th><th>تاریخ</th><th>خودرو</th><th>شرح قطعه</th><th>محصول</th><th>آنالیز علت ایراد</th><th>اقدام اصلاحی</th><th>منشاء</th><th>کلیم</th><th>فرم 8D</th><th>وضعیت</th><th></th></tr></thead>
     <tbody>${page.map(r=>`<tr class="clickable" data-id="${r.id}">
-      <td class="num">${esc(r.id)}</td><td class="tiny">${esc(faDigits(r.date))}</td><td class="tiny">${esc(r.car)}</td>
+      <td class="num"><b>${esc(faDigits(r.id))}</b></td><td class="tiny">${esc(faDigits(r.date))}</td><td class="tiny">${esc(r.car)}</td>
       <td class="tiny" title="${esc(r.part)}">${esc(r.part.length>40?r.part.slice(0,40)+"…":r.part)}</td>
       <td class="tiny">${esc(r.product)}</td>
       <td class="tiny" title="${esc(r.cause)}">${esc(r.cause? (r.cause.length>44?r.cause.slice(0,44)+"…":r.cause) : "—")}</td>
       <td class="tiny" title="${esc(r.action)}">${esc(r.action? (r.action.length>34?r.action.slice(0,34)+"…":r.action) : "—")}</td>
-      <td class="tiny">${esc(r.origin||"—")}</td>
+      <td class="tiny">${esc(r.reviewOrigin||"—")}</td>
       <td class="num tiny">${esc(r.claimNo||"—")}</td>
       <td class="tiny">${esc(r.form8d)}</td>
-      <td>${statusBadge(r)}</td></tr>`).join("")}</tbody>`;
-  $$("#reviews-table tbody tr").forEach(tr=>tr.addEventListener("click",()=>openWarning(Number(tr.dataset.id))));
+      <td>${statusBadge(r)}</td>
+      <td><button class="btn" style="padding:5px 9px">اخطار</button></td></tr>`).join("")}</tbody>`;
+  $$("#reviews-table tbody tr").forEach(tr=>tr.addEventListener("click",()=>openWarning(Number(tr.dataset.id),"review")));
   renderPager($("#reviews-pager"),items.length,state.page,state.pageSize,p=>{state.page=p;renderReviews(applyFilters());});
 }
 
@@ -1102,8 +1165,11 @@ function renderWarningsTab(rows){
       <td class="tiny"><span class="group-pill"><span class="dot" style="background:${color(r.group)}"></span>${esc(gLabel(r.group))}</span></td>
       <td class="tiny">${esc(r.branch||"—")}</td>
       <td class="num">${esc(r.grade)}</td><td>${statusBadge(r)}</td><td class="tiny">${priorityBadge(r)}</td><td class="num">${fmt(r.qty)}</td><td class="num">${fmt(r.score)}</td>
-      <td>${confBadge(r.confidence)} ${reviewBadge(r)}</td></tr>`).join("")}</tbody>`;
+      <td>${confBadge(r.confidence)} ${r.hasReview?`<button class="wm-link" data-review="${r.id}" title="باز کردن برگهٔ بررسی متصل به این اخطار">برگهٔ بررسی</button>`:reviewBadge(r)}</td></tr>`).join("")}</tbody>`;
   $$("#warnings-table tbody tr").forEach(tr=>tr.addEventListener("click",()=>openWarning(Number(tr.dataset.id))));
+  $$("#warnings-table [data-review]").forEach(btn=>btn.addEventListener("click",event=>{
+    event.stopPropagation(); openWarning(Number(btn.dataset.review),"review");
+  }));
   renderPager($("#warnings-pager"),total,state.page,state.pageSize,p=>{state.page=p;renderWarningsTab(applyFilters());});
 }
 function renderGroupingChecks(){
@@ -1322,7 +1388,7 @@ function formEditorHtml(r){
   const fields=Object.entries(labels).filter(([k])=>!skip.has(k));
   const suggestions={
     problem:[r.part?`شرح قطعه: ${r.part}`:"",r.error?`شرح خطا: ${r.error}`:"",r.car?`خودرو: ${r.car}`:""].filter(Boolean).join("\n"),
-    root_cause:[r.causeStd?`علت استاندارد: ${r.causeStd}`:"",r.cause?`آنالیز علت: ${r.cause}`:"",r.origin?`منشاء: ${r.origin}`:""].filter(Boolean).join("\n"),
+    root_cause:[r.causeStd?`علت استاندارد: ${r.causeStd}`:"",r.cause?`آنالیز علت: ${r.cause}`:"",r.reviewOrigin?`منشاء: ${r.reviewOrigin}`:""].filter(Boolean).join("\n"),
     containment:r.action||"",
     corrective:r.action||""
   };
@@ -1356,7 +1422,7 @@ function bindFormEditor(r){
   if(fill) fill.addEventListener("click",()=>{
     const map={
       problem:[r.part?`شرح قطعه: ${r.part}`:"",r.error?`شرح خطا: ${r.error}`:"",r.car?`خودرو: ${r.car}`:""].filter(Boolean).join("\n"),
-      root_cause:[r.causeStd?`علت استاندارد: ${r.causeStd}`:"",r.cause?`آنالیز علت: ${r.cause}`:"",r.origin?`منشاء: ${r.origin}`:""].filter(Boolean).join("\n"),
+      root_cause:[r.causeStd?`علت استاندارد: ${r.causeStd}`:"",r.cause?`آنالیز علت: ${r.cause}`:"",r.reviewOrigin?`منشاء: ${r.reviewOrigin}`:""].filter(Boolean).join("\n"),
       containment:r.action||"",
       corrective:r.action||""
     };
@@ -1449,44 +1515,160 @@ function exportFormJson(){
   toast(`پشتیبان ${fmt(Object.keys(payload.entries).length)} فرم دانلود شد`);
 }
 
-function openWarning(id){
+function wmRow(label, value){
+  return `<div class="k">${label}</div><div class="v">${value||"—"}</div>`;
+}
+function wmShowPanel(name){
+  $$("#modal-body .wm-tab").forEach(btn=>btn.classList.toggle("active", btn.dataset.wm===name));
+  $$("#modal-body .wm-panel").forEach(panel=>panel.classList.toggle("active", panel.dataset.wmPanel===name));
+  const body=$("#modal-body"); if(body && name!=="summary") body.scrollTop=0;
+}
+function summaryPanelHtml(r){
+  const stage = esc(stageName(r.status));
+  return `<div class="wm-grid">
+    <div class="wm-card">
+      <h4>ایراد و دسته‌بندی</h4>
+      <div class="wm-rows">
+        ${wmRow("ایراد مشتری", `<b>${esc(r.defect||"—")}</b>`)}
+        ${wmRow("دسته‌بندی", `${defectCatBadge(r.defectCat)||'<span class="muted tiny">ثبت نشده</span>'}`)}
+        ${wmRow("گروه فنی", esc(r.defectGroup))}
+        ${wmRow("تکرار در محصول", r.defectRepeat>1?`<span class="badge red">${fmt(r.defectRepeat)} بار در این محصول</span>`:"۱ بار")}
+        ${wmRow("نوع / شرح خطا", `${esc(r.type||"—")} · ${esc(r.error||"—")}`)}
+        ${wmRow("خودرو", `${esc(r.car||"—")}${r.make?` · ${esc(r.make)}`:""}`)}
+      </div>
+    </div>
+    <div class="wm-card">
+      <h4>قطعه و محصول</h4>
+      <div class="wm-rows">
+        ${wmRow("شرح قطعه", esc(r.part))}
+        ${wmRow("شرح منشا", esc(r.origin))}
+        ${wmRow("شماره فنی", esc(r.tech))}
+        ${wmRow("محصول راهکاران", `${esc(r.rahkaran||"—")} ${r.code?`<span class="muted tiny">(${esc(r.code)})</span>`:""}`)}
+        ${wmRow("گروه / خانواده", `${esc(r.group||"—")} · ${esc(r.family||"—")}`)}
+        ${wmRow("محصول", `<b>${esc(r.product||"—")}</b>`)}
+        ${wmRow("کد گروه / برنچ", `${esc(r.catalogCode||"—")} · ${esc(r.branch||"نامشخص")}`)}
+      </div>
+    </div>
+    <div class="wm-card full">
+      <h4>وضعیت، اقدام و کیفیت تطبیق</h4>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="wm-rows">
+          ${wmRow("وضعیت مؤثر", statusBadge(r))}
+          ${wmRow("وضعیت ثبت‌شده", esc(r.rawStatus||r.status))}
+          ${wmRow("اولویت", priorityBadge(r))}
+          ${wmRow("وضعیت اقدام", stage)}
+          ${wmRow("اقدام کوتاه‌مدت", esc(r.stAction))}
+          ${wmRow("اقدام میان‌مدت", esc(r.mtAction))}
+          ${wmRow("شماره فرم 8D", `<b>${esc(r.form8d||"—")}</b>`)}
+        </div>
+        <div class="wm-rows">
+          ${wmRow("روش تطبیق", `${esc(r.method||"—")} ${confBadge(r.confidence)}`)}
+          ${wmRow("کاندید شماره فنی", `${fmt(r.candidates)} ${r.mismatch?'<span class="badge amber">مغایرت خودرو</span>':""} ${r.review?'<span class="badge red">نیاز به بازبینی</span>':""}`)}
+          ${wmRow("محل صدور", esc(r.location))}
+          ${wmRow("گرید", esc(r.grade))}
+          ${wmRow("قطعات معیوب", fmt(r.qty))}
+          ${wmRow("نمره منفی", `${fmt(r.score)} <span class="muted tiny">(سازنده ${fmt(r.scoreMaker)})</span>`)}
+          ${wmRow("برگهٔ بررسی", r.hasReview?'<span class="badge green">متصل</span>':(r.autoClosed?'<span class="badge violet">خودکار خاتمه</span>':'<span class="badge slate">ندارد</span>'))}
+        </div>
+      </div>
+      ${r.autoClosed?`<div class="wm-text" style="margin-top:10px;border-color:#ddd6fe;background:#f5f3ff;color:#5b21b6">این اخطار در فایل مشتری با وضعیت «${esc(r.rawStatus)}» ثبت شده بود؛ چون تاریخ تایید آن قدیمی‌تر از یک سال است، خودکار خاتمه‌یافته در نظر گرفته شده است.</div>`:""}
+      ${r.notes?`<div class="wm-card full" style="border:0;padding:10px 0 0"><h4>توضیحات ثبت‌شدهٔ مشتری</h4><div class="wm-text">${esc(r.notes)}</div></div>`:""}
+    </div>
+  </div>`;
+}
+function reviewPanelHtml(r){
+  const sources=DATA.meta.sources||{};
+  const file=esc(sources.review||"C_Plus");
+  if(!r.hasReview){
+    return `<div class="wm-empty">
+      <div style="font-size:24px;margin-bottom:4px">🗂️</div>
+      برای اخطار <b>${esc(faDigits(r.id))}</b> در فایل <b>${file}</b> برگهٔ بررسی ثبت نشده است.<br>
+      <span class="tiny">کلید اتصال، «شماره اخطار» است؛ به‌محض اضافه شدن برگه با همین شماره، این بخش در ساخت بعدی خودکار پر می‌شود.</span>
+      <div style="margin-top:12px"><button class="btn" data-wm-jump="form">رفتن به فرم 8D</button></div>
+    </div>`;
+  }
+  return `<div class="wm-source">
+      🔗 این برگه از فایل <b>${file}</b>، شیت «اخطار»، با کلید <b>شماره اخطار ${esc(faDigits(r.id))}</b> به همین اخطار متصل شده است.
+    </div>
+    <div class="wm-grid">
+      <div class="wm-card full"><h4>آنالیز علت ایراد</h4><div class="wm-text">${esc(r.cause||"—")}</div></div>
+      <div class="wm-card full"><h4>شرح اقدام اصلاحی</h4><div class="wm-text">${esc(r.action||"—")}</div></div>
+      <div class="wm-card"><h4>دسته‌بندی مشتری</h4><div class="wm-rows">
+        ${wmRow("منشاء ایراد", esc(r.reviewOrigin))}
+        ${wmRow("دسته اعلامی", esc(r.reviewCategory))}
+        ${wmRow("گروه بازرگانی", esc(r.reviewDealGroup))}
+        ${wmRow("تامین‌کننده", esc(r.supplier))}
+        ${wmRow("دوره", esc(r.reviewPeriod))}
+      </div></div>
+      <div class="wm-card"><h4>کلیم و پیگیری</h4><div class="wm-rows">
+        ${wmRow("شماره کلیم", esc(r.claimNo))}
+        ${wmRow("کارت نارنجی", esc(r.orangeCard))}
+        ${wmRow("کلیم شماره فنی", `${fmt(r.claims)} <span class="muted tiny">(پذیرفته ${fmt(r.claimsAccepted)})</span>`)}
+        ${wmRow("علت استاندارد", `${esc(r.causeStd||"—")} ${r.m6&&r.m6!=="نامشخص"?`<span class="badge violet">${esc(r.m6)}</span>`:""}`)}
+        ${wmRow("گروه علت", esc(r.causeGroup))}
+      </div></div>
+      ${r.reviewNotes?`<div class="wm-card full"><h4>توضیحات برگهٔ بررسی</h4><div class="wm-text">${esc(r.reviewNotes)}</div></div>`:""}
+    </div>`;
+}
+function formPanelHtml(r){
+  if(!r.form8d || r.form8d==="—"){
+    return `<div class="wm-empty">برای این اخطار فرم 8D تعریف نشده است.</div>`;
+  }
+  return `<div id="form8d-editor">${formEditorHtml(r)}</div>`;
+}
+function renderModalFooter(r){
+  const foot=$("#modal-foot"); if(!foot) return;
+  const list=(currentWarnings&&currentWarnings.length)?currentWarnings:DATA.warnings;
+  const idx=list.findIndex(x=>x.id===r.id);
+  const prev=idx>0?list[idx-1]:null, next=idx>=0&&idx<list.length-1?list[idx+1]:null;
+  foot.innerHTML=`<span>${idx>=0?`اخطار ${fmt(idx+1)} از ${fmt(list.length)} در فهرست فعلی`:"جزئیات اخطار"}</span>
+    <span style="display:flex;gap:8px">
+      <button class="btn" id="wm-prev" ${prev?"":"disabled"}>‹ قبلی</button>
+      <button class="btn" id="wm-next" ${next?"":"disabled"}>بعدی ›</button>
+    </span>`;
+  const prevBtn=$("#wm-prev"), nextBtn=$("#wm-next");
+  if(prevBtn&&prev) prevBtn.addEventListener("click",()=>openWarning(prev.id));
+  if(nextBtn&&next) nextBtn.addEventListener("click",()=>openWarning(next.id));
+}
+function openWarning(id, panel){
   const r=DATA.warnings.find(x=>x.id===id); if(!r) return;
-  $("#modal-title").textContent=`اخطار ${r.id}`;
-  $("#modal-body").innerHTML=`<div class="kv">
-    <div class="k">تاریخ تایید</div><div class="v">${esc(faDigits(r.date))}</div>
-    <div class="k">گروه خودرو</div><div class="v">${esc(r.car)} · ${esc(r.make)}</div>
-    <div class="k">شرح قطعه</div><div class="v">${esc(r.part)}</div>
-    <div class="k">شرح منشا</div><div class="v">${esc(r.origin||"—")}</div>
-    <div class="k">شماره فنی</div><div class="v">${esc(r.tech||"—")}</div>
-    <div class="k">محصول راهکاران</div><div class="v">${esc(r.rahkaran||"—")} ${r.code?`<span class="muted tiny">(${esc(r.code)})</span>`:""}</div>
-    <div class="k">گروه محصول</div><div class="v"><span class="group-pill"><span class="dot" style="background:${color(r.group)}"></span>${esc(r.group)}</span></div>
-    <div class="k">خانواده</div><div class="v">${esc(r.family)}</div>
-    <div class="k">محصول</div><div class="v"><b>${esc(r.product)}</b></div>
-    <div class="k">کد گروه محصول</div><div class="v">${esc(r.catalogCode||"—")}</div>
-    <div class="k">روش تطبیق</div><div class="v">${esc(r.method)}</div>
-    <div class="k">اطمینان</div><div class="v">${confBadge(r.confidence)} ${r.review?'<span class="badge red">نیاز به بازبینی</span>':""}</div>
-    <div class="k">کاندیدهای شماره فنی</div><div class="v">${fmt(r.candidates)} ${r.mismatch?'<span class="badge amber">مغایرت خودرو</span>':""}</div>
-    <div class="k">قطعات معیوب</div><div class="v">${fmt(r.qty)}</div>
-    <div class="k">نمره منفی</div><div class="v">${fmt(r.score)} (سازنده: ${fmt(r.scoreMaker)})</div>
-    <div class="k">گرید / وضعیت</div><div class="v">${esc(r.grade)} · ${statusBadge(r)}</div>
-    <div class="k">اولویت اخطار</div><div class="v">${priorityBadge(r)} ${r.rawStatus&&r.rawStatus!==r.status?`<span class="muted tiny">ثبت‌شده: ${esc(r.rawStatus)}</span>`:""}</div>
-    ${r.autoClosed?`<div class="k">خاتمهٔ خودکار</div><div class="v">این اخطار با وضعیت «${esc(r.rawStatus)}» ثبت شده بود؛ چون قدیمی‌تر از یک سال است، خودکار خاتمه‌یافته در نظر گرفته شد.</div>`:""}
-    <div class="k">محل صدور</div><div class="v">${esc(r.location||"—")}</div>
-    <div class="k">نوع ایراد / خطا</div><div class="v">${esc(r.type||"—")} · ${esc(r.error||"—")}</div>
-    <div class="k">وضعیت اقدام</div><div class="v">${esc(stageName(r.status))} · کوتاه‌مدت: ${esc(r.stAction||"—")} · میان‌مدت: ${esc(r.mtAction||"—")}</div>
-    <div class="k">شماره فرم 8D</div><div class="v"><b>${esc(r.form8d)}</b> ${r.hasReview?'<span class="badge green">برگه بررسی دارد</span>':'<span class="badge amber">بدون برگه بررسی</span>'}</div>
-    <div class="k">برنچ</div><div class="v">${esc(r.branch||"—")} ${r.branchSource?`<span class="muted tiny">(${esc(r.branchSource)})</span>`:""}</div>
-    <div class="k">ایراد مشتری</div><div class="v">${esc(r.defect||"—")} ${defectCatBadge(r.defectCat)} ${r.defectGroup?`<span class="muted tiny">گروه فنی: ${esc(r.defectGroup)}</span>`:""} ${r.defectRepeat>1?`<span class="badge red">${fmt(r.defectRepeat)} بار در این محصول</span>`:""}</div>
-    <div class="k">علت استاندارد / ۶M</div><div class="v">${esc(r.causeStd||"—")} ${r.m6&&r.m6!=="نامشخص"?`· <span class="badge violet">${esc(r.m6)}</span>`:""}</div>
-    <div class="k">شماره کلیم / کارت نارنجی</div><div class="v">${esc(r.claimNo||"—")} · ${esc(r.orangeCard||"—")}</div>
-    <div class="k">تعداد کلیم شماره فنی</div><div class="v">${fmt(r.claims)} (پذیرفته‌شده: ${fmt(r.claimsAccepted)})</div>
-  </div>
-  ${(r.cause||r.action||r.origin)?`<div class="note-box"><b>آنالیز علت ایراد:</b> ${esc(r.cause||"—")}
-<b>شرح اقدام اصلاحی:</b> ${esc(r.action||"—")}
-<b>منشاء ایراد:</b> ${esc(r.origin||"—")} ${r.reviewCategory?` · <span class="muted">دسته اعلامی مشتری: ${esc(r.reviewCategory)}</span>`:""}</div>`:`<div class="note-box muted">برای این اخطار برگهٔ بررسی ثبت نشده است؛ فرم 8D با اطلاعات سرصفحه ساخته شده و بخش‌های علت/اقدام باید تکمیل شود.</div>`}
-  ${r.notes?`<div class="note-box"><b>توضیحات:</b>\n${esc(r.notes)}</div>`:""}
-  ${r.form8d && r.form8d!=="—" ? `<div id="form8d-editor">${formEditorHtml(r)}</div>` : '<div class="note-box muted">برای این اخطار فرم 8D تعریف نشده است.</div>'}`;
+  $(".modal-box") && ($(".modal-box").scrollTop=0);
+  $("#modal-title").textContent=`پروندهٔ اخطار کیفی · ${faDigits(r.id)}`;
+  $("#modal-body").innerHTML=`
+    <div class="wm-hero">
+      <div class="wm-top">
+        <div>
+          <div class="wm-serial">شماره اخطار <b>${esc(faDigits(r.id))}</b></div>
+          <div class="wm-meta">تاریخ تایید ${esc(faDigits(r.date))} · ${esc(r.car||"—")}${r.make?` · ${esc(r.make)}`:""}</div>
+        </div>
+        <div class="wm-badges">
+          ${statusBadge(r)}
+          ${priorityBadge(r)}
+          ${r.grade?`<span class="badge slate">گرید ${esc(r.grade)}</span>`:""}
+          ${r.branch?`<span class="badge blue">${esc(r.branch)}</span>`:""}
+          ${r.hasReview?'<span class="badge green">برگهٔ بررسی متصل</span>':'<span class="badge amber">بدون برگهٔ بررسی</span>'}
+        </div>
+      </div>
+      <div class="wm-defect">${esc(r.defect||r.part||"—")}</div>
+      <div class="wm-part">${esc(r.part)}${r.defectCat?` · ${esc(r.defectCat)}`:""}${r.product?` · ${esc(r.product)}`:""}</div>
+      <div class="wm-stats">
+        ${[["قطعات معیوب",fmt(r.qty)],["نمره منفی",fmt(r.score)],["تکرار ایراد",fmt(r.defectRepeat||1)],["شماره فنی",r.tech||"—"]]
+          .map(([l,v])=>`<div class="wm-stat"><div class="l">${l}</div><div class="v" title="${esc(v)}">${esc(v)}</div></div>`).join("")}
+      </div>
+    </div>
+    <div class="wm-tabs">
+      <button class="wm-tab" data-wm="summary">خلاصه</button>
+      <button class="wm-tab" data-wm="review">برگهٔ بررسی مشتری ${r.hasReview?'<span class="badge green">متصل</span>':'<span class="badge slate">ندارد</span>'}</button>
+      <button class="wm-tab" data-wm="form">فرم 8D</button>
+    </div>
+    <div class="wm-panel" data-wm-panel="summary">${summaryPanelHtml(r)}</div>
+    <div class="wm-panel" data-wm-panel="review">${reviewPanelHtml(r)}</div>
+    <div class="wm-panel" data-wm-panel="form">${formPanelHtml(r)}</div>`;
+  $$("#modal-body .wm-tab").forEach(btn=>btn.addEventListener("click",()=>wmShowPanel(btn.dataset.wm)));
+  $$("#modal-body [data-wm-jump]").forEach(btn=>btn.addEventListener("click",()=>wmShowPanel(btn.dataset.wmJump)));
+  renderModalFooter(r);
   $("#modal").classList.remove("hidden");
+  wmShowPanel(panel||"summary");
   bindFormEditor(r);
 }
 function openProduct(product){
@@ -1509,6 +1691,7 @@ function openProduct(product){
   <div class="table-wrap"><table><thead><tr><th>سریال</th><th>تاریخ</th><th>خودرو</th><th>شرح قطعه</th><th>شماره فنی</th><th>قطعات</th></tr></thead><tbody>
   ${rows.slice(0,10).map(r=>`<tr><td class="num">${esc(r.id)}</td><td class="tiny">${esc(faDigits(r.date))}</td><td class="tiny">${esc(r.car)}</td><td class="tiny">${esc(r.part)}</td><td class="tiny">${esc(r.tech||"—")}</td><td class="num">${fmt(r.qty)}</td></tr>`).join("")}
   </tbody></table></div>`;
+  const foot=$("#modal-foot"); if(foot) foot.innerHTML="";
   $("#modal").classList.remove("hidden");
   $("#go-product-warnings").addEventListener("click",()=>{
     state.product=product; state.page=1; syncSelects(); switchTab("warnings"); render(); $("#modal").classList.add("hidden");
@@ -1655,7 +1838,7 @@ function toCsv(rows){
     ["کد گروه محصول","catalogCode"],["در کاتالوگ","inCatalog"],["در دامنه","inScope"],["روش تطبیق","method"],["اطمینان","confidence"],
     ["قطعات معیوب","qty"],["نمره منفی","score"],["گرید","grade"],["وضعیت مؤثر","status"],["وضعیت ثبت‌شده","rawStatus"],["خاتمهٔ خودکار","autoClosed"],["اولویت اخطار","priorityLabel"],["نیاز به بازبینی","review"],
     ["وضعیت اقدام کوتاه مدت","stAction"],["وضعیت اقدام میان مدت","mtAction"],
-    ["آنالیز علت ایراد","cause"],["شرح اقدام اصلاحی","action"],["منشاء ایراد","origin"],
+    ["آنالیز علت ایراد","cause"],["شرح اقدام اصلاحی","action"],["منشاء ایراد","reviewOrigin"],["تامین‌کننده (بررسی)","supplier"],
     ["برنچ","branch"],["ایراد مشتری","defect"],["دسته‌بندی ایراد","defectCat"],["گروه فنی (کمکی)","defectGroup"],["تکرار ایراد در محصول","defectRepeat"],["علت استاندارد","causeStd"],["گروه ۶M","m6"],
     ["شماره کلیم","claimNo"],["شماره کارت نارنجی","orangeCard"],["شماره فرم 8D","form8d"],["وضعیت فرم 8D","formStatus"],["دارای برگه بررسی","hasReview"]
   ];
@@ -1671,7 +1854,7 @@ function exportReviewCsv(){
   const cols=[["سریال","id"],["تاریخ","date"],["خودرو","car"],["شرح قطعه","part"],["شماره فنی","tech"],
     ["محصول راهکاران","rahkaran"],["گروه محصول","group"],["خانواده","family"],["محصول","product"],
     ["دسته محصول (بررسی)","reviewCategory"],["آنالیز علت ایراد","cause"],["شرح اقدام اصلاحی","action"],
-    ["منشاء ایراد","origin"],["شماره کلیم","claimNo"],["شماره کارت نارنجی","orangeCard"],
+    ["منشاء ایراد","reviewOrigin"],["شماره کلیم","claimNo"],["شماره کارت نارنجی","orangeCard"],
     ["تعداد کلیم شماره فنی","claims"],["شماره فرم 8D","form8d"],["وضعیت","status"]];
   const head=cols.map(c=>c[0]).join(",");
   const body=rows.map(r=>cols.map(([_,k])=>{

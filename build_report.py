@@ -269,6 +269,7 @@ def main() -> int:
         "warnings": WARNINGS_FILE.name,
         "listdata": LISTDATA_FILE.name,
         "catalog": CATALOG_FILE.name,
+        "review": REVIEW_FILE.name,
     }
 
     excel_path = OUTPUT_DIR / "گزارش دسته‌بندی اخطارهای کیفی.xlsx"
