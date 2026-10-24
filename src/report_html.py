@@ -136,6 +136,8 @@ def _payload(
                 "branchSource": _clean_text(row.get("منبع برنچ", "")),
                 "defect": _clean_text(row.get("ایراد مشتری", "")),
                 "defectSrc": _clean_text(row.get("منبع ایراد", "")),
+                "rootCause": _clean_text(row.get("ریشهٔ ایراد", "")),
+                "rootPart": _clean_text(row.get("قطعهٔ ریشه", "")),
                 "defectCat": _clean_text(row.get("دسته‌بندی ایراد", "")),
                 "defectGroup": _clean_text(row.get("گروه ایراد", "")),
                 "defectRepeat": int(row.get("تکرار ایراد در محصول", 0) or 0),
@@ -449,6 +451,12 @@ tbody tr:last-child td{border-bottom:0}
 .wm-rows{display:grid;grid-template-columns:118px 1fr;gap:7px 10px;font-size:12.5px}
 .wm-rows .k{color:var(--muted);font-weight:600}
 .wm-rows .v{color:var(--ink);word-break:break-word}
+.bar-row.clickable{cursor:pointer;border-radius:8px}
+.bar-row.clickable:hover{background:#f1f5f9}
+.fchips{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 10px}
+.fchip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:11.5px;font-weight:600;border:1px solid #e0e7ff}
+.fchip button{border:0;background:none;color:#4338ca;cursor:pointer;font-size:13px;line-height:1;padding:0}
+.fchip.clear{background:#fff1f2;color:#9f1239;border-color:#ffe4e6}
 .wm-tag{display:inline-block;margin-inline-start:8px;padding:1px 7px;border-radius:999px;background:#eef2ff;color:#4338ca;font-size:10.5px;font-weight:700;vertical-align:middle}
 .wm-tag.manual{background:#ecfdf5;color:#047857}
 .wm-text{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:11px 13px;font-size:12.5px;line-height:1.9;white-space:pre-wrap;color:#0f172a}
@@ -510,6 +518,8 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
   <div class="field" style="grid-column:span 2"><label>وضعیت مؤثر اخطار</label><select id="f-status"></select></div>
   <div class="field"><label>اولویت اخطار</label><select id="f-priority"></select></div>
   <div class="field"><label>برگه بررسی</label><select id="f-review"></select></div>
+  <div class="field"><label>ریشهٔ ایراد</label><select id="f-root"></select></div>
+  <div class="field"><label>قطعهٔ ریشه</label><select id="f-rootpart"></select></div>
   <div class="filter-actions" style="grid-column:span 4">
     <button class="btn" id="reset">پاک‌کردن</button>
     <button class="btn primary" id="export">خروجی CSV</button>
@@ -519,6 +529,29 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
 <main>
   <section class="tab-panel active" id="tab-overview">
     <div class="kpi-grid" id="kpis"></div>
+    <div class="grid-3">
+      <div class="card">
+        <h3>ریشهٔ ایراد <span class="hint">کلیک روی هر ریشه = باز شدن همان اخطارها</span></h3>
+        <div class="bars" id="root-bars"></div>
+        <div class="muted tiny" id="root-note" style="margin-top:8px"></div>
+      </div>
+      <div class="card">
+        <h3>پارتو قطعهٔ ریشه <span class="hint">قطعهٔ معیوب با بیشترین اخطار</span></h3>
+        <div class="bars" id="rootpart-bars"></div>
+        <div class="muted tiny" id="pareto-note" style="margin-top:8px"></div>
+      </div>
+      <div class="card">
+        <h3>ایرادهای تکراردار <span class="hint">تکرار همان ایراد در یک محصول</span></h3>
+        <div class="table-wrap" style="max-height:330px;overflow:auto"><table id="repeat-table"></table></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="toolbar">
+        <h3 style="margin:0">جدول پارتو قطعه <span class="hint" id="pareto-count"></span></h3>
+        <div class="right"><div class="search-mini"><input id="pareto-search" placeholder="جستجوی قطعهٔ ریشه"></div></div>
+      </div>
+      <div class="table-wrap" style="max-height:420px;overflow:auto"><table id="pareto-table"></table></div>
+    </div>
     <div class="grid-2">
       <div class="card"><h3>سهم گروه‌های محصول <span class="hint">بر اساس تعداد اخطار</span></h3><div id="donut"></div></div>
       <div class="card"><h3 style="justify-content:space-between">روند اخطارها <span class="hint" id="trend-hint">سال شمسی</span></h3>
@@ -578,6 +611,7 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
           <select id="page-size" class="btn" style="padding:8px 10px"><option value="25">۲۵ ردیف</option><option value="50">۵۰ ردیف</option><option value="100">۱۰۰ ردیف</option></select>
         </div>
       </div>
+      <div class="fchips" id="warnings-active-filters"></div>
       <div class="table-wrap"><table id="warnings-table"></table></div>
       <div class="pager" id="warnings-pager"></div>
     </div>
@@ -747,7 +781,7 @@ const reviewBadge = r => r.review ? '<span class="badge red">بازبینی</spa
 const catalogBadge = r => r.inCatalog ? '<span class="badge green">کاتالوگ</span>' : (r.inScope ? '<span class="badge slate">سایر</span>' : '<span class="badge slate">خارج</span>');
 
 const state = {group:"",family:"",product:"",car:"",grade:"",status:"",priority:"",year:"",from:"",to:"",q:"",tab:"overview",warningSort:"priority",
-  review:"",branch:"",defect:"",defectCat:"all",productQ:"",warningQ:"",reviewQ:"",defectQ:"",formQ:"",formStatus:"",formScope:"working",
+  review:"",branch:"",defect:"",root:"",rootPart:"",defectCat:"all",productQ:"",warningQ:"",reviewQ:"",defectQ:"",formQ:"",formStatus:"",formScope:"working",paretoQ:"",
   page:1,pageSize:25,productSort:{key:"warnings",dir:-1},trendMode:"year"};
 let currentProducts = [];
 let currentWarnings = [];
@@ -774,6 +808,8 @@ function applyFilters(){
     if(state.product && r.product!==state.product) return false;
     if(state.branch && r.branch!==state.branch) return false;
     if(state.defect && r.defect!==state.defect) return false;
+    if(state.root && r.rootCause!==state.root) return false;
+    if(state.rootPart && r.rootPart!==state.rootPart) return false;
     if(state.car && r.car!==state.car) return false;
     if(state.grade && r.grade!==state.grade) return false;
     if(state.status==="open" && !r.open) return false;
@@ -849,6 +885,141 @@ function renderKpis(rows){
     ["اخطارهای باز",fmt(open),`${fmt(auto)} خودکار خاتمه · ${fmt(reviewed)} برگه بررسی (${pct(total?reviewed/total:0)})`,"slate"]
   ];
   $("#kpis").innerHTML=cards.map(([l,v,s,c])=>`<div class="kpi ${c}"><div class="label">${l}</div><div class="value">${v}</div><div class="sub">${s}</div></div>`).join("");
+}
+function rootRows(rows){
+  const map=new Map();
+  rows.forEach(r=>{
+    const name=r.rootCause||"اعلام نشده";
+    if(!map.has(name)) map.set(name,{name,warnings:0,products:new Set(),open:0,qty:0});
+    const item=map.get(name);
+    item.warnings+=1; item.open+=r.open?1:0; item.qty+=Number(r.qty||0); item.products.add(r.product);
+  });
+  return Array.from(map.values()).map(i=>({...i,products:i.products.size})).sort((a,b)=>b.warnings-a.warnings);
+}
+function paretoRows(rows){
+  const map=new Map();
+  rows.forEach(r=>{
+    const name=r.rootPart||"نامشخص";
+    if(!map.has(name)) map.set(name,{name,warnings:0,products:new Set(),roots:new Set(),open:0});
+    const item=map.get(name);
+    item.warnings+=1; item.open+=r.open?1:0;
+    item.products.add(r.product);
+    if(r.rootCause && r.rootCause!=="اعلام نشده") item.roots.add(r.rootCause);
+  });
+  const total=rows.length||1;
+  let cumulative=0;
+  return Array.from(map.values()).map(i=>({...i,products:i.products.size,roots:i.roots.size}))
+    .sort((a,b)=>b.warnings-a.warnings || a.name.localeCompare(b.name,"fa"))
+    .map((item,index)=>{
+      cumulative+=item.warnings;
+      return {...item,rank:index+1,share:item.warnings/total,cum:cumulative/total};
+    });
+}
+function repeatRows(rows){
+  const map=new Map();
+  rows.forEach(r=>{
+    if(Number(r.defectRepeat||0)<2) return;
+    const name=r.defect||"نامشخص";
+    if(!map.has(name)) map.set(name,{name,warnings:0,maxRepeat:0,products:new Set(),open:0});
+    const item=map.get(name);
+    item.warnings+=1; item.open+=r.open?1:0;
+    item.maxRepeat=Math.max(item.maxRepeat,Number(r.defectRepeat||0));
+    item.products.add(r.product);
+  });
+  return Array.from(map.values()).map(i=>({...i,products:i.products.size}))
+    .sort((a,b)=>b.maxRepeat-a.maxRepeat || b.warnings-a.warnings);
+}
+function goRoot(name){
+  state.root=name; state.page=1;
+  const sel=$("#f-root"); if(sel) sel.value=name;
+  switchTab("warnings"); render();
+}
+function goRootPart(name){
+  state.rootPart=name; state.page=1;
+  const sel=$("#f-rootpart"); if(sel) sel.value=name;
+  switchTab("warnings"); render();
+}
+function goDefect(name){
+  state.defect=name; state.page=1;
+  switchTab("warnings"); render();
+}
+function renderRootPanel(rows){
+  const all=rootRows(rows);
+  const known=all.filter(i=>i.name!=="اعلام نشده");
+  const el=$("#root-bars");
+  if(!el) return;
+  if(!known.length){ empty(el,"ریشه‌ای در متن اخطارها پیدا نشد"); }
+  else{
+    const top=known.slice(0,9);
+    const max=Math.max(1,...top.map(i=>i.warnings));
+    el.innerHTML=top.map(i=>`<div class="bar-row clickable" data-root="${esc(i.name)}" title="نمایش اخطارهای ریشهٔ «${esc(i.name)}»">
+      <div class="label">${esc(i.name)}</div><div class="track"><div class="fill" style="width:${i.warnings/max*100}%;background:#0f766e"></div></div><div class="val">${fmt(i.warnings)}</div></div>`).join("");
+    $$("#root-bars [data-root]").forEach(row=>row.addEventListener("click",()=>goRoot(row.dataset.root)));
+  }
+  const unknown=all.find(i=>i.name==="اعلام نشده");
+  const total=rows.length||1;
+  const note=$("#root-note");
+  if(note) note.innerHTML=known.length
+    ? `از ${fmt(total)} اخطار، ${fmt(total-(unknown?unknown.warnings:0))} ریشهٔ مشخص دارند (${pct((total-(unknown?unknown.warnings:0))/total)})؛ بقیه در متن اخطار علتی ذکر نکرده‌اند.`
+    : `متن اخطارها علت مشخصی ندارد؛ ریشه فقط از «توضیحات»/«شرح منشا»/«آنالیز علت» خوانده می‌شود.`;
+}
+function renderPareto(rows){
+  const items=paretoRows(rows.filter(r=>(r.rootPart||"نامشخص")!=="نامشخص"));
+  const el=$("#rootpart-bars");
+  if(!el) return;
+  if(!items.length){ empty(el,"قطعهٔ ریزی برای پارتو پیدا نشد"); }
+  else{
+    const top=items.slice(0,9);
+    const max=Math.max(1,...top.map(i=>i.warnings));
+    el.innerHTML=top.map(i=>`<div class="bar-row clickable" data-part="${esc(i.name)}" title="نمایش اخطارهای قطعهٔ «${esc(i.name)}»">
+      <div class="label" title="${esc(i.name)}">${esc(i.name)}</div><div class="track"><div class="fill" style="width:${i.warnings/max*100}%;background:#0891b2"></div></div><div class="val">${fmt(i.warnings)}</div></div>`).join("");
+    $$("#rootpart-bars [data-part]").forEach(row=>row.addEventListener("click",()=>goRootPart(row.dataset.part)));
+    const eighty=items.find(i=>i.cum>=0.8);
+    const note=$("#pareto-note");
+    if(note) note.innerHTML=`${items.length>9?`۹ قطعهٔ اول`:`${fmt(items.length)} قطعه`} · ${eighty?`${fmt(eighty.rank)} قطعهٔ اول، ${pct(eighty.cum)} اخطارها را می‌سازند`:`همهٔ قطعه‌ها`}`;
+  }
+  const q=(state.paretoQ||"").trim().toLowerCase();
+  const list=q?items.filter(i=>i.name.toLowerCase().includes(q)):items;
+  $("#pareto-count").textContent=`${fmt(Math.min(60,list.length))} از ${fmt(items.length)} قطعه · ${fmt(rows.length)} اخطار`;
+  $("#pareto-table").innerHTML=`<thead><tr><th>#</th><th>قطعهٔ ریشه</th><th>اخطار</th><th>سهم</th><th>سهم تجمعی</th><th>ریشه‌ها</th><th>محصولات</th><th>باز</th><th></th></tr></thead>
+    <tbody>${list.slice(0,60).map(i=>`<tr class="clickable" data-part="${esc(i.name)}">
+      <td class="num muted">${fmt(i.rank)}</td><td><b>${esc(i.name)}</b></td>
+      <td class="num">${fmt(i.warnings)}</td><td class="num muted">${pct(i.share)}</td>
+      <td class="num">${pct(i.cum)}</td><td class="num">${fmt(i.roots)}</td>
+      <td class="num">${fmt(i.products)}</td><td class="num">${fmt(i.open)}</td>
+      <td><button class="btn" data-open-part="${esc(i.name)}" style="padding:4px 9px">اخطارها</button></td></tr>`).join("")}</tbody>`;
+  $$("#pareto-table [data-part]").forEach(row=>row.addEventListener("click",()=>goRootPart(row.dataset.part)));
+}
+function renderRepeatPanel(rows){
+  const items=repeatRows(rows);
+  const el=$("#repeat-table");
+  if(!el) return;
+  if(!items.length){ el.innerHTML='<tbody><tr><td class="muted tiny">ایراد تکراردار (بیش از یک بار در یک محصول) در این فیلتر نیست.</td></tr></tbody>'; return; }
+  el.innerHTML=`<thead><tr><th>ایراد مشتری</th><th>بیشترین تکرار</th><th>اخطار</th></tr></thead>
+    <tbody>${items.slice(0,25).map(i=>`<tr class="clickable" data-defect="${esc(i.name)}" title="نمایش اخطارهای «${esc(i.name)}»">
+      <td class="tiny">${esc(i.name)}</td><td class="num"><span class="badge red">×${fmt(i.maxRepeat)}</span></td><td class="num">${fmt(i.warnings)}</td></tr>`).join("")}</tbody>`;
+  $$("#repeat-table [data-defect]").forEach(row=>row.addEventListener("click",()=>goDefect(row.dataset.defect)));
+}
+function renderActiveFilters(){
+  const el=$("#warnings-active-filters"); if(!el) return;
+  const chips=[];
+  if(state.root) chips.push(`<span class="fchip">ریشه: ${esc(state.root)}<button data-clear="root" title="حذف فیلتر">×</button></span>`);
+  if(state.rootPart) chips.push(`<span class="fchip">قطعهٔ ریشه: ${esc(state.rootPart)}<button data-clear="rootPart" title="حذف فیلتر">×</button></span>`);
+  if(state.defect) chips.push(`<span class="fchip">ایراد مشتری: ${esc(state.defect)}<button data-clear="defect" title="حذف فیلتر">×</button></span>`);
+  if(!chips.length){ el.innerHTML=""; return; }
+  el.innerHTML=chips.join("")+`<button class="fchip clear" id="clear-linked" style="cursor:pointer">پاک‌کردن فیلترهای لینک‌شده</button>`;
+  $$("#warnings-active-filters [data-clear]").forEach(btn=>btn.addEventListener("click",()=>{
+    state[btn.dataset.clear]="";
+    const map={root:"#f-root",rootPart:"#f-rootpart"};
+    if(map[btn.dataset.clear]){ const sel=$(map[btn.dataset.clear]); if(sel) sel.value=""; }
+    state.page=1; render();
+  }));
+  const clear=$("#clear-linked");
+  if(clear) clear.addEventListener("click",()=>{
+    state.root=""; state.rootPart=""; state.defect=""; state.page=1;
+    $("#f-root").value=""; $("#f-rootpart").value="";
+    render();
+  });
 }
 function renderQualityKpis(rows){
   const total=rows.length||1;
@@ -1153,17 +1324,19 @@ function renderWarningsTab(rows){
   if(q) items=items.filter(r=>haystack(r).includes(q));
   currentWarnings=items;
   renderPriorityNote();
+  renderActiveFilters();
   const total=items.length, pages=Math.max(1,Math.ceil(total/state.pageSize));
   if(state.page>pages) state.page=pages;
   const start=(state.page-1)*state.pageSize;
   const page=items.slice(start,start+state.pageSize);
   $("#warnings-count").textContent=`${fmt(total)} ردیف · نمایش ${fmt(page.length)} ردیف`;
   $("#warnings-table").innerHTML=`<thead><tr>
-    <th>سریال</th><th>تاریخ</th><th>خودرو</th><th>شرح قطعه</th><th>ایراد مشتری</th><th>شماره فنی</th><th>محصول راهکاران</th><th>خانواده</th><th>محصول</th><th>گروه</th><th>برنچ</th><th>گرید</th><th>وضعیت</th><th>اولویت</th><th>قطعات</th><th>نمره</th><th>تطبیق</th></tr></thead>
+    <th>سریال</th><th>تاریخ</th><th>خودرو</th><th>شرح قطعه</th><th>ایراد مشتری</th><th>ریشه</th><th>شماره فنی</th><th>محصول راهکاران</th><th>خانواده</th><th>محصول</th><th>گروه</th><th>برنچ</th><th>گرید</th><th>وضعیت</th><th>اولویت</th><th>قطعات</th><th>نمره</th><th>تطبیق</th></tr></thead>
     <tbody>${page.map(r=>`<tr class="clickable" data-id="${r.id}">
       <td class="num">${esc(r.id)}</td><td class="muted tiny">${esc(faDigits(r.date))}</td><td class="tiny">${esc(r.car)}</td>
       <td title="${esc(r.part)}">${esc(r.part.length>46?r.part.slice(0,46)+"…":r.part)}</td>
       <td class="tiny" title="${esc(r.defect)}">${esc(r.defect||"—")} ${r.defectRepeat>1?`<span class="badge red">×${fmt(r.defectRepeat)}</span>`:""}</td>
+      <td class="tiny"><span class="badge ${r.rootCause&&r.rootCause!=="اعلام نشده"?"amber":"slate"}">${esc(r.rootCause||"اعلام نشده")}</span></td>
       <td class="tiny">${esc(r.tech||"—")}</td><td class="tiny" title="${esc(r.rahkaran)}">${esc(r.rahkaran.length>34?r.rahkaran.slice(0,34)+"…":r.rahkaran||"—")}</td>
       <td class="tiny">${esc(r.family)}</td><td class="tiny">${esc(r.product)}</td>
       <td class="tiny"><span class="group-pill"><span class="dot" style="background:${color(r.group)}"></span>${esc(gLabel(r.group))}</span></td>
@@ -1542,6 +1715,8 @@ function summaryPanelHtml(r){
         ${wmRow("ایراد مشتری", `<b>${esc(r.defect||"—")}</b>${r.defectSrc?`<span class="wm-tag ${r.defectSrc.indexOf("الگوی دستی")===0?"manual":""}">${esc(r.defectSrc)}</span>`:""}`)}
         ${wmRow("دسته‌بندی", `${defectCatBadge(r.defectCat)||'<span class="muted tiny">ثبت نشده</span>'}`)}
         ${wmRow("گروه فنی", esc(r.defectGroup))}
+        ${wmRow("ریشهٔ ایراد", `<b>${esc(r.rootCause||"اعلام نشده")}</b>`)}
+        ${wmRow("قطعهٔ ریشه", esc(r.rootPart||"—"))}
         ${wmRow("تکرار در محصول", r.defectRepeat>1?`<span class="badge red">${fmt(r.defectRepeat)} بار در این محصول</span>`:"۱ بار")}
         ${wmRow("نوع / شرح خطا", `${esc(r.type||"—")} · ${esc(r.error||"—")}`)}
         ${wmRow("خودرو", `${esc(r.car||"—")}${r.make?` · ${esc(r.make)}`:""}`)}
@@ -1744,6 +1919,10 @@ function initFilters(){
   fillSelect($("#f-grade"),grades,state.grade);
   $("#f-status").innerHTML=`<option value="">همه</option><option value="open">باز</option><option value="closed">خاتمه‌یافته</option>`;
   $("#f-review").innerHTML=`<option value="">همه</option><option value="yes">دارای برگه بررسی</option><option value="no">بدون برگه بررسی</option>`;
+  const roots=Array.from(new Set(DATA.warnings.map(r=>r.rootCause).filter(Boolean))).sort();
+  fillSelect($("#f-root"),roots,state.root);
+  const rootParts=Array.from(new Set(DATA.warnings.map(r=>r.rootPart).filter(Boolean))).sort();
+  fillSelect($("#f-rootpart"),rootParts,state.rootPart);
   $("#f-priority").innerHTML=`<option value="">همه اولویت‌ها</option>`+
     [["1","باز — سال جاری"],["2","باز — یک‌سال گذشته"],["3","باز — بدون تاریخ"],["4","خاتمهٔ خودکار"],["5","خاتمه‌یافته"]]
       .map(([value,label])=>`<option value="${value}">${label}</option>`).join("");
@@ -1759,6 +1938,8 @@ function initFilters(){
   $("#f-status").addEventListener("change",e=>{state.status=e.target.value;state.page=1;render();});
   $("#f-priority").addEventListener("change",e=>{state.priority=e.target.value;state.page=1;render();});
   $("#f-review").addEventListener("change",e=>{state.review=e.target.value;state.page=1;render();});
+  $("#f-root").addEventListener("change",e=>{state.root=e.target.value;state.page=1;render();});
+  $("#f-rootpart").addEventListener("change",e=>{state.rootPart=e.target.value;state.page=1;render();});
   $("#f-year").addEventListener("change",e=>{
     state.year=e.target.value; state.from=""; state.to=""; state.page=1;
     refreshMonthSelects();
@@ -1770,11 +1951,11 @@ function initFilters(){
   let timer=null;
   $("#f-q").addEventListener("input",e=>{clearTimeout(timer);timer=setTimeout(()=>{state.q=e.target.value;state.page=1;render();},180);});
   $("#reset").addEventListener("click",()=>{
-    Object.assign(state,{group:"",family:"",product:"",branch:"",defect:"",car:"",grade:"",status:"",priority:"",year:"",from:"",to:"",q:"",review:"",productQ:"",warningQ:"",reviewQ:"",defectQ:"",formQ:"",formStatus:"",page:1,warningSort:"priority"});
+    Object.assign(state,{group:"",family:"",product:"",branch:"",defect:"",root:"",rootPart:"",car:"",grade:"",status:"",priority:"",year:"",from:"",to:"",q:"",review:"",productQ:"",warningQ:"",reviewQ:"",defectQ:"",formQ:"",formStatus:"",page:1,warningSort:"priority"});
     $("#f-q").value=""; $("#product-search").value=""; $("#warning-search").value=""; $("#review-search").value="";
-    $("#defect-search").value=""; $("#form-search").value=""; $("#form-status-filter").value=""; $("#f-branch").value=""; $("#form-scope").value="working";
+    $("#defect-search").value=""; $("#form-search").value=""; $("#pareto-search").value=""; state.paretoQ=""; $("#form-status-filter").value=""; $("#f-branch").value=""; $("#form-scope").value="working";
     syncSelects(); refreshMonthSelects();
-    $("#f-car").value="";$("#f-grade").value="";$("#f-status").value="";$("#f-priority").value="";$("#warning-sort").value="priority";$("#f-year").value="";$("#f-review").value="";$("#f-from").value="";$("#f-to").value="";
+    $("#f-car").value="";$("#f-grade").value="";$("#f-status").value="";$("#f-priority").value="";$("#warning-sort").value="priority";$("#f-year").value="";$("#f-review").value="";$("#f-from").value="";$("#f-to").value="";$("#f-root").value="";$("#f-rootpart").value="";
     render();
   });
   $("#export").addEventListener("click",exportCsv);
@@ -1784,6 +1965,8 @@ function initFilters(){
   $("#warning-search").addEventListener("input",e=>{state.warningQ=e.target.value;state.page=1;renderWarningsTab(applyFilters());});
   $("#warning-sort").addEventListener("change",e=>{state.warningSort=e.target.value;state.page=1;renderWarningsTab(applyFilters());});
   $("#review-search").addEventListener("input",e=>{state.reviewQ=e.target.value;state.page=1;renderReviews(applyFilters());});
+  const paretoSearch=$("#pareto-search");
+  if(paretoSearch) paretoSearch.addEventListener("input",e=>{state.paretoQ=e.target.value;renderPareto(applyFilters());});
   $("#review-export").addEventListener("click",exportReviewCsv);
   $("#defect-search").addEventListener("input",e=>{state.defectQ=e.target.value;renderDefectsTab(applyFilters());});
   $$("#defect-cat button").forEach(btn=>btn.addEventListener("click",()=>{
@@ -1825,6 +2008,9 @@ function render(){
   const rows=applyFilters();
   syncSelects();
   renderKpis(rows);
+  renderRootPanel(rows);
+  renderPareto(rows);
+  renderRepeatPanel(rows);
   renderDonut($("#donut"),rows);
   renderStatusDonut($("#status-donut"),rows);
   renderActionBars(rows);
@@ -1849,7 +2035,7 @@ function toCsv(rows){
     ["قطعات معیوب","qty"],["نمره منفی","score"],["گرید","grade"],["وضعیت مؤثر","status"],["وضعیت ثبت‌شده","rawStatus"],["خاتمهٔ خودکار","autoClosed"],["اولویت اخطار","priorityLabel"],["نیاز به بازبینی","review"],
     ["وضعیت اقدام کوتاه مدت","stAction"],["وضعیت اقدام میان مدت","mtAction"],
     ["آنالیز علت ایراد","cause"],["شرح اقدام اصلاحی","action"],["منشاء ایراد","reviewOrigin"],["تامین‌کننده (بررسی)","supplier"],
-    ["برنچ","branch"],["ایراد مشتری","defect"],["دسته‌بندی ایراد","defectCat"],["گروه فنی (کمکی)","defectGroup"],["تکرار ایراد در محصول","defectRepeat"],["علت استاندارد","causeStd"],["گروه ۶M","m6"],
+    ["برنچ","branch"],["ایراد مشتری","defect"],["ریشهٔ ایراد","rootCause"],["قطعهٔ ریشه","rootPart"],["دسته‌بندی ایراد","defectCat"],["گروه فنی (کمکی)","defectGroup"],["تکرار ایراد در محصول","defectRepeat"],["علت استاندارد","causeStd"],["گروه ۶M","m6"],
     ["شماره کلیم","claimNo"],["شماره کارت نارنجی","orangeCard"],["شماره فرم 8D","form8d"],["وضعیت فرم 8D","formStatus"],["دارای برگه بررسی","hasReview"]
   ];
   const head=cols.map(c=>c[0]).join(",");

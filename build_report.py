@@ -187,6 +187,7 @@ def main() -> int:
     from src.report_8d import build_8d_document, build_official_form
     from src.report_excel import build_excel
     from src.report_html import build_html
+    from src.root_cause import add_root_cause, root_summary
     from src.overrides import apply_overrides, load_overrides
     from src.status import PRIORITY_ORDER, add_priority
     from src.review import attach_review, eight_d_rows, grouping_checks, load_claims, load_review
@@ -297,6 +298,16 @@ def main() -> int:
     if defect_overrides:
         enriched = apply_defect_overrides(enriched, defect_overrides)
     enriched = defect_learn.refresh_keys(enriched)
+
+    # ریشهٔ ایراد (اتصالی، نشتی، شکستگی، …) و قطعهٔ ریشه برای پارتو نمای کلی
+    enriched = add_root_cause(enriched)
+    roots = root_summary(enriched, top=5)
+    if not roots.empty:
+        top_roots = " | ".join(
+            f"{row['ریشهٔ ایراد']} {int(row['تعداد اخطار']):,}" for _, row in roots.iterrows()
+        )
+        log(f"   ریشهٔ ایراد: {top_roots}")
+        log(f"   قطعهٔ ریشه یکتا: {enriched['قطعهٔ ریشه'].nunique():,}")
 
     categories = enriched["دسته‌بندی ایراد"].value_counts().to_dict()
     log(
