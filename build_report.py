@@ -187,6 +187,7 @@ def main() -> int:
     from src.report_8d import build_8d_document, build_official_form
     from src.report_excel import build_excel
     from src.report_html import build_html
+    from src.analysis_part import add_analysis_part, part_summary
     from src.root_cause import add_root_cause, root_summary
     from src.overrides import apply_overrides, load_overrides
     from src.status import PRIORITY_ORDER, add_priority
@@ -299,7 +300,7 @@ def main() -> int:
         enriched = apply_defect_overrides(enriched, defect_overrides)
     enriched = defect_learn.refresh_keys(enriched)
 
-    # ریشهٔ ایراد (اتصالی، نشتی، شکستگی، …) و قطعهٔ ریشه برای پارتو نمای کلی
+    # ریشهٔ ایراد (اتصالی، نشتی، شکستگی، …) برای نمودار نمای کلی
     enriched = add_root_cause(enriched)
     roots = root_summary(enriched, top=5)
     if not roots.empty:
@@ -307,7 +308,16 @@ def main() -> int:
             f"{row['ریشهٔ ایراد']} {int(row['تعداد اخطار']):,}" for _, row in roots.iterrows()
         )
         log(f"   ریشهٔ ایراد: {top_roots}")
-        log(f"   قطعهٔ ریشه یکتا: {enriched['قطعهٔ ریشه'].nunique():,}")
+
+    # «قطعه» از دل «آنالیز علت ایراد» برگهٔ بررسی (مثل میکرو، LCD، کانکتور)
+    enriched = add_analysis_part(enriched)
+    parts = part_summary(enriched)
+    if not parts.empty:
+        named = int(parts["تعداد برگهٔ بررسی"].sum())
+        top_parts = " | ".join(
+            f"{row['قطعهٔ تحلیل']} {int(row['تعداد برگهٔ بررسی']):,}" for _, row in parts.head(5).iterrows()
+        )
+        log(f"   قطعه در تحلیل (از {named:,} برگهٔ بررسی): {top_parts}")
 
     categories = enriched["دسته‌بندی ایراد"].value_counts().to_dict()
     log(

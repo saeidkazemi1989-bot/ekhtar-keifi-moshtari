@@ -556,6 +556,26 @@ def build_excel(
                     "اخطارهایی که با وضعیت باز ثبت شده بودند و خودکار خاتمه یافتند",
                 )
 
+    # ---------------------------------------------------------------- قطعه در تحلیل
+    if "قطعهٔ تحلیل" in enriched.columns and enriched["قطعهٔ تحلیل"].astype(str).str.len().gt(0).any():
+        from src.analysis_part import ANALYSIS_COLUMN, GROUP_COLUMN, PART_COLUMN, part_summary
+
+        ws = wb.create_sheet("قطعه در تحلیل")
+        ws.sheet_view.rightToLeft = True
+        row = _title(
+            ws,
+            1,
+            8,
+            "پارتو قطعه بر اساس آنالیز علت ایراد",
+            "قطعهٔ معیوب از متن «آنالیز علت ایراد» برگهٔ بررسی مشتری استخراج شده است (نه از ستونهای خود اخطار).",
+        )
+        table = part_summary(enriched)
+        if not table.empty:
+            table = table.rename(columns={PART_COLUMN: "قطعه در تحلیل", "تعداد برگهٔ بررسی": "تعداد اخطار"})
+            _write_table(ws, table, row, number_formats={"سهم": "0.0%"})
+        else:
+            ws.cell(row=row, column=1, value="قطعه‌ای در متن تحلیل‌ها نام برده نشده است.")
+
     # ---------------------------------------------------------------- بررسی اخطارها
     ws = wb.create_sheet("بررسی اخطارها")
     ws.sheet_view.rightToLeft = True
@@ -581,7 +601,8 @@ def build_excel(
             "ایراد مشتری",
             "دسته‌بندی ایراد",
             "ریشهٔ ایراد",
-            "قطعهٔ ریشه",
+            "قطعهٔ تحلیل",
+            "قطعه (گروه‌بندی)",
             "شماره فنی",
             "محصول",
             "خانواده محصول",

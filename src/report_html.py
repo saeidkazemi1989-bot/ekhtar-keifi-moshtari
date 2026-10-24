@@ -137,7 +137,8 @@ def _payload(
                 "defect": _clean_text(row.get("ایراد مشتری", "")),
                 "defectSrc": _clean_text(row.get("منبع ایراد", "")),
                 "rootCause": _clean_text(row.get("ریشهٔ ایراد", "")),
-                "rootPart": _clean_text(row.get("قطعهٔ ریشه", "")),
+                "analysisPart": _clean_text(row.get("قطعهٔ تحلیل", "")),
+                "groupPath": _clean_text(row.get("قطعه (گروه‌بندی)", "")),
                 "defectCat": _clean_text(row.get("دسته‌بندی ایراد", "")),
                 "defectGroup": _clean_text(row.get("گروه ایراد", "")),
                 "defectRepeat": int(row.get("تکرار ایراد در محصول", 0) or 0),
@@ -605,7 +606,7 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
   <div class="field"><label>اولویت اخطار</label><select id="f-priority"></select></div>
   <div class="field"><label>برگه بررسی</label><select id="f-review"></select></div>
   <div class="field"><label>ریشهٔ ایراد</label><select id="f-root"></select></div>
-  <div class="field"><label>قطعهٔ ریشه</label><select id="f-rootpart"></select></div>
+  <div class="field"><label>قطعهٔ تحلیل</label><select id="f-rootpart"></select></div>
   <div class="filter-actions" style="grid-column:span 4">
     <button class="btn" id="reset">پاک‌کردن</button>
     <button class="btn primary" id="export">خروجی CSV</button>
@@ -626,7 +627,7 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
         <div class="muted tiny" id="root-note" style="margin-top:10px"></div>
       </div>
       <div class="card">
-        <h3>پارتو قطعهٔ ریشه <span class="hint">قطعهٔ معیوب با بیشترین اخطار</span></h3>
+        <h3>پارتو قطعه در تحلیل <span class="hint">از «آنالیز علت ایراد» برگهٔ بررسی</span></h3>
         <div class="bars" id="rootpart-bars"></div>
         <div class="muted tiny" id="pareto-note" style="margin-top:8px"></div>
       </div>
@@ -638,7 +639,7 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
     <div class="card">
       <div class="toolbar">
         <h3 style="margin:0">جدول پارتو قطعه <span class="hint" id="pareto-count"></span></h3>
-        <div class="right"><div class="search-mini"><input id="pareto-search" placeholder="جستجوی قطعهٔ ریشه"></div></div>
+        <div class="right"><div class="search-mini"><input id="pareto-search" placeholder="جستجوی قطعه در تحلیل"></div></div>
       </div>
       <div class="table-wrap" style="max-height:420px;overflow:auto"><table id="pareto-table"></table></div>
     </div>
@@ -899,7 +900,7 @@ function applyFilters(){
     if(state.branch && r.branch!==state.branch) return false;
     if(state.defect && r.defect!==state.defect) return false;
     if(state.root && r.rootCause!==state.root) return false;
-    if(state.rootPart && r.rootPart!==state.rootPart) return false;
+    if(state.rootPart && r.analysisPart!==state.rootPart) return false;
     if(state.quickFilter==="review" && !isUnderReview(r)) return false;
     if(state.quickFilter==="notreceived" && !isNotReceived(r)) return false;
     if(state.car && r.car!==state.car) return false;
@@ -1043,16 +1044,16 @@ function rootRows(rows){
 function paretoRows(rows){
   const map=new Map();
   rows.forEach(r=>{
-    const name=r.rootPart||"نامشخص";
-    if(!map.has(name)) map.set(name,{name,warnings:0,products:new Set(),roots:new Set(),open:0});
+    const name=r.analysisPart||"نامشخص";
+    if(!map.has(name)) map.set(name,{name,warnings:0,products:new Set(),groups:new Set(),open:0});
     const item=map.get(name);
     item.warnings+=1; item.open+=r.open?1:0;
     item.products.add(r.product);
-    if(r.rootCause && r.rootCause!=="اعلام نشده") item.roots.add(r.rootCause);
+    if(r.groupPath) item.groups.add(r.groupPath.split(" / ")[0]);
   });
   const total=rows.length||1;
   let cumulative=0;
-  return Array.from(map.values()).map(i=>({...i,products:i.products.size,roots:i.roots.size}))
+  return Array.from(map.values()).map(i=>({...i,products:i.products.size,groups:i.groups.size}))
     .sort((a,b)=>b.warnings-a.warnings || a.name.localeCompare(b.name,"fa"))
     .map((item,index)=>{
       cumulative+=item.warnings;
@@ -1091,7 +1092,10 @@ function openBreakdown(title,subtitle,rows,opts){
   const qty=sum(rows,"qty");
   const products=new Set(rows.map(r=>r.product)).size;
   const roots=rootRows(rows).filter(i=>!isHiddenRoot(i.name)).slice(0,7);
-  const parts=paretoRows(rows).filter(i=>i.name!=="نامشخص").slice(0,7);
+  const isPartMode=opts.mode==="part";
+  const parts=isPartMode
+    ? groupAgg(rows.map(r=>({...r,partGroup:(r.groupPath||"نامشخص").split(" / ")[0]})),"partGroup").slice(0,7)
+    : paretoRows(rows).filter(i=>i.name!=="نامشخص").slice(0,7);
   const defects=defectRows(rows).slice(0,7);
   const list=rows.slice().sort(byPriority).slice(0,40);
   $("#modal-title").textContent=title;
@@ -1107,7 +1111,7 @@ function openBreakdown(title,subtitle,rows,opts){
     </div>
     <div class="drill-grid">
       <div class="drill-card"><h4>ریشهٔ ایراد</h4>${drillBars(roots,"#3b5bdb")}</div>
-      <div class="drill-card"><h4>قطعهٔ ریشه (پارتو)</h4>${drillBars(parts,"#0f9f8f")}</div>
+      <div class="drill-card"><h4>${isPartMode?"گروه محصول این قطعه":"قطعه در تحلیل (پارتو)"}</h4>${drillBars(parts,"#0f9f8f",isPartMode?"warnings":"warnings")}</div>
     </div>
     <div class="drill-grid">
       <div class="drill-card"><h4>پرتکرارترین ایراد مشتری</h4>${drillBars(defects,"#e11d48")}</div>
@@ -1152,9 +1156,9 @@ function goRoot(name){
     {apply:()=>{state.root=name;state.page=1;const sel=$("#f-root");if(sel)sel.value=name;}});
 }
 function goRootPart(name){
-  openBreakdown(`قطعهٔ ریشه: ${name}`,"اخطارهایی که قطعهٔ معیوبشان این قطعه است (پارتو)",
-    applyFilters().filter(r=>r.rootPart===name),
-    {apply:()=>{state.rootPart=name;state.page=1;const sel=$("#f-rootpart");if(sel)sel.value=name;}});
+  openBreakdown(`قطعه در تحلیل: ${name}`,"قطعه‌ای که در «آنالیز علت ایراد» همین اخطارها نام برده شده است",
+    applyFilters().filter(r=>r.analysisPart===name),
+    {mode:"part",apply:()=>{state.rootPart=name;state.page=1;const sel=$("#f-rootpart");if(sel)sel.value=name;}});
 }
 function goDefect(name){
   openBreakdown(`ایراد مشتری: ${name}`,"همهٔ اخطارهایی که همین ایراد برایشان ثبت شده است",
@@ -1180,7 +1184,7 @@ function renderRootPanel(rows){
     : `متن اخطارها علت مشخصی ندارد؛ ریشه فقط از «توضیحات»/«شرح منشا»/«آنالیز علت» خوانده می‌شود.`;
 }
 function renderPareto(rows){
-  const items=paretoRows(rows.filter(r=>(r.rootPart||"نامشخص")!=="نامشخص"));
+  const items=paretoRows(rows.filter(r=>!!r.analysisPart));
   const el=$("#rootpart-bars");
   if(!el) return;
   if(!items.length){ empty(el,"قطعهٔ ریزی برای پارتو پیدا نشد"); }
@@ -1192,16 +1196,17 @@ function renderPareto(rows){
     $$("#rootpart-bars [data-part]").forEach(row=>row.addEventListener("click",()=>goRootPart(row.dataset.part)));
     const eighty=items.find(i=>i.cum>=0.8);
     const note=$("#pareto-note");
-    if(note) note.innerHTML=`${items.length>9?`۹ قطعهٔ اول`:`${fmt(items.length)} قطعه`} · ${eighty?`${fmt(eighty.rank)} قطعهٔ اول، ${pct(eighty.cum)} اخطارها را می‌سازند`:`همهٔ قطعه‌ها`}`;
+    const reviewedNamed=rows.filter(r=>!!r.analysisPart).length;
+    if(note) note.innerHTML=`از ${fmt(reviewedNamed)} اخطار با «آنالیز علت ایراد»، ${fmt(items.length)} قطعه نام برده شده · ${eighty?`${fmt(eighty.rank)} قطعهٔ اول، ${pct(eighty.cum)} این تحلیل‌ها را می‌سازند`:`همهٔ قطعه‌ها`}`;
   }
   const q=(state.paretoQ||"").trim().toLowerCase();
   const list=q?items.filter(i=>i.name.toLowerCase().includes(q)):items;
   $("#pareto-count").textContent=`${fmt(Math.min(60,list.length))} از ${fmt(items.length)} قطعه · ${fmt(rows.length)} اخطار`;
-  $("#pareto-table").innerHTML=`<thead><tr><th>#</th><th>قطعهٔ ریشه</th><th>اخطار</th><th>سهم</th><th>سهم تجمعی</th><th>ریشه‌ها</th><th>محصولات</th><th>باز</th><th></th></tr></thead>
+  $("#pareto-table").innerHTML=`<thead><tr><th>#</th><th>قطعه در تحلیل</th><th>اخطار</th><th>سهم</th><th>سهم تجمعی</th><th>گروه‌ها</th><th>محصولات</th><th>باز</th><th></th></tr></thead>
     <tbody>${list.slice(0,60).map(i=>`<tr class="clickable" data-part="${esc(i.name)}">
       <td class="num muted">${fmt(i.rank)}</td><td><b>${esc(i.name)}</b></td>
       <td class="num">${fmt(i.warnings)}</td><td class="num muted">${pct(i.share)}</td>
-      <td class="num">${pct(i.cum)}</td><td class="num">${fmt(i.roots)}</td>
+      <td class="num">${pct(i.cum)}</td><td class="num">${fmt(i.groups)}</td>
       <td class="num">${fmt(i.products)}</td><td class="num">${fmt(i.open)}</td>
       <td><button class="btn" data-open-part="${esc(i.name)}" style="padding:4px 9px">اخطارها</button></td></tr>`).join("")}</tbody>`;
   $$("#pareto-table [data-part]").forEach(row=>row.addEventListener("click",()=>goRootPart(row.dataset.part)));
@@ -1220,7 +1225,7 @@ function renderActiveFilters(){
   const el=$("#warnings-active-filters"); if(!el) return;
   const chips=[];
   if(state.root) chips.push(`<span class="fchip">ریشه: ${esc(state.root)}<button data-clear="root" title="حذف فیلتر">×</button></span>`);
-  if(state.rootPart) chips.push(`<span class="fchip">قطعهٔ ریشه: ${esc(state.rootPart)}<button data-clear="rootPart" title="حذف فیلتر">×</button></span>`);
+  if(state.rootPart) chips.push(`<span class="fchip">قطعهٔ تحلیل: ${esc(state.rootPart)}<button data-clear="rootPart" title="حذف فیلتر">×</button></span>`);
   if(state.defect) chips.push(`<span class="fchip">ایراد مشتری: ${esc(state.defect)}<button data-clear="defect" title="حذف فیلتر">×</button></span>`);
   if(state.quickFilter) chips.push(`<span class="fchip">${state.quickFilter==="review"?"فقط در حال بررسی":"فقط دریافت‌نشده"}<button data-clear="quickFilter" title="حذف فیلتر">×</button></span>`);
   if(!chips.length){ el.innerHTML=""; return; }
@@ -1550,10 +1555,13 @@ function renderWarningsTab(rows){
   const page=items.slice(start,start+state.pageSize);
   $("#warnings-count").textContent=`${fmt(total)} ردیف · نمایش ${fmt(page.length)} ردیف`;
   $("#warnings-table").innerHTML=`<thead><tr>
-    <th>سریال</th><th>تاریخ</th><th>خودرو</th><th>شرح قطعه</th><th>ایراد مشتری</th><th>ریشه</th><th>شماره فنی</th><th>محصول راهکاران</th><th>خانواده</th><th>محصول</th><th>گروه</th><th>برنچ</th><th>گرید</th><th>وضعیت</th><th>اولویت</th><th>قطعات</th><th>نمره</th><th>تطبیق</th></tr></thead>
+    <th>سریال</th><th>تاریخ</th><th>خودرو</th><th>قطعه (گروه‌بندی)</th><th>ایراد مشتری</th><th>ریشه</th><th>شماره فنی</th><th>محصول راهکاران</th><th>خانواده</th><th>محصول</th><th>گروه</th><th>برنچ</th><th>گرید</th><th>وضعیت</th><th>اولویت</th><th>قطعات</th><th>نمره</th><th>تطبیق</th></tr></thead>
     <tbody>${page.map(r=>`<tr class="clickable" data-id="${r.id}">
       <td class="num">${esc(r.id)}</td><td class="muted tiny">${esc(faDigits(r.date))}</td><td class="tiny">${esc(r.car)}</td>
-      <td title="${esc(r.part)}">${esc(r.part.length>46?r.part.slice(0,46)+"…":r.part)}</td>
+      <td class="tiny" title="شرح قطعه (مشتری): ${esc(r.part)}">
+        <div style="font-weight:700;color:#1e293b">${esc(r.product||"—")}</div>
+        <div class="muted" style="font-size:10px">${esc([r.family,r.group?gLabel(r.group):""].filter(Boolean).join(" · ")||"—")}</div>
+      </td>
       <td class="tiny" title="${esc(r.defect)}">${esc(r.defect||"—")} ${r.defectRepeat>1?`<span class="badge red">×${fmt(r.defectRepeat)}</span>`:""}</td>
       <td class="tiny">${rootText(r)==="—"?'<span class="muted">—</span>':`<span class="badge amber">${esc(rootText(r))}</span>`}</td>
       <td class="tiny">${esc(r.tech||"—")}</td><td class="tiny" title="${esc(r.rahkaran)}">${esc(r.rahkaran.length>34?r.rahkaran.slice(0,34)+"…":r.rahkaran||"—")}</td>
@@ -1935,7 +1943,7 @@ function summaryPanelHtml(r){
         ${wmRow("دسته‌بندی", `${defectCatBadge(r.defectCat)||'<span class="muted tiny">ثبت نشده</span>'}`)}
         ${wmRow("گروه فنی", esc(r.defectGroup))}
         ${wmRow("ریشهٔ ایراد", r.rootCause&&!isHiddenRoot(r.rootCause)?`<b>${esc(r.rootCause)}</b>`:`<span class="muted">${r.rootCause==="عدم دریافت قطعه"?"قطعه دریافت نشده":"در متن اخطار علتی ذکر نشده"}</span>`)}
-        ${wmRow("قطعهٔ ریشه", esc(r.rootPart||"—"))}
+        ${wmRow("قطعه در تحلیل", r.analysisPart?`<b>${esc(r.analysisPart)}</b> <span class="muted tiny">(از آنالیز علت)</span>`:`<span class="muted">در تحلیل نام برده نشده</span>`)}
         ${wmRow("تکرار در محصول", r.defectRepeat>1?`<span class="badge red">${fmt(r.defectRepeat)} بار در این محصول</span>`:"۱ بار")}
         ${wmRow("نوع / شرح خطا", `${esc(r.type||"—")} · ${esc(r.error||"—")}`)}
         ${wmRow("خودرو", `${esc(r.car||"—")}${r.make?` · ${esc(r.make)}`:""}`)}
@@ -1944,7 +1952,8 @@ function summaryPanelHtml(r){
     <div class="wm-card">
       <h4>قطعه و محصول</h4>
       <div class="wm-rows">
-        ${wmRow("شرح قطعه", esc(r.part))}
+        ${wmRow("قطعه (گروه‌بندی)", `<b>${esc(r.product||"—")}</b> <span class="muted tiny">${esc([r.group?gLabel(r.group):"",r.family].filter(Boolean).join(" · "))}</span>`)}
+        ${wmRow("شرح قطعه (مشتری)", esc(r.part))}
         ${wmRow("شرح منشا", esc(r.origin))}
         ${wmRow("شماره فنی", esc(r.tech))}
         ${wmRow("محصول راهکاران", `${esc(r.rahkaran||"—")} ${r.code?`<span class="muted tiny">(${esc(r.code)})</span>`:""}`)}
@@ -1995,7 +2004,9 @@ function reviewPanelHtml(r){
       🔗 این برگه از فایل <b>${file}</b>، شیت «اخطار»، با کلید <b>شماره اخطار ${esc(faDigits(r.id))}</b> به همین اخطار متصل شده است.
     </div>
     <div class="wm-grid">
-      <div class="wm-card full"><h4>آنالیز علت ایراد</h4><div class="wm-text">${esc(r.cause||"—")}</div></div>
+      <div class="wm-card full"><h4>آنالیز علت ایراد</h4>
+        <div class="wm-rows" style="margin-bottom:8px">${wmRow("قطعه در تحلیل", r.analysisPart?`<b>${esc(r.analysisPart)}</b>`:`<span class="muted">در متن تحلیل نام برده نشده</span>`)}</div>
+        <div class="wm-text">${esc(r.cause||"—")}</div></div>
       <div class="wm-card full"><h4>شرح اقدام اصلاحی</h4><div class="wm-text">${esc(r.action||"—")}</div></div>
       <div class="wm-card"><h4>دسته‌بندی مشتری</h4><div class="wm-rows">
         ${wmRow("منشاء ایراد", esc(r.reviewOrigin))}
@@ -2140,7 +2151,7 @@ function initFilters(){
   $("#f-review").innerHTML=`<option value="">همه</option><option value="yes">دارای برگه بررسی</option><option value="no">بدون برگه بررسی</option>`;
   const roots=Array.from(new Set(DATA.warnings.map(r=>r.rootCause).filter(Boolean).filter(v=>!isHiddenRoot(v)))).sort();
   fillSelect($("#f-root"),roots,state.root);
-  const rootParts=Array.from(new Set(DATA.warnings.map(r=>r.rootPart).filter(Boolean))).sort();
+  const rootParts=Array.from(new Set(DATA.warnings.map(r=>r.analysisPart).filter(Boolean))).sort((a,b)=>a.localeCompare(b,"fa"));
   fillSelect($("#f-rootpart"),rootParts,state.rootPart);
   $("#f-priority").innerHTML=`<option value="">همه اولویت‌ها</option>`+
     [["1","باز — سال جاری"],["2","باز — یک‌سال گذشته"],["3","باز — بدون تاریخ"],["4","خاتمهٔ خودکار"],["5","خاتمه‌یافته"]]
@@ -2260,7 +2271,7 @@ function toCsv(rows){
     ["قطعات معیوب","qty"],["نمره منفی","score"],["گرید","grade"],["وضعیت مؤثر","status"],["وضعیت ثبت‌شده","rawStatus"],["خاتمهٔ خودکار","autoClosed"],["اولویت اخطار","priorityLabel"],["نیاز به بازبینی","review"],
     ["وضعیت اقدام کوتاه مدت","stAction"],["وضعیت اقدام میان مدت","mtAction"],
     ["آنالیز علت ایراد","cause"],["شرح اقدام اصلاحی","action"],["منشاء ایراد","reviewOrigin"],["تامین‌کننده (بررسی)","supplier"],
-    ["برنچ","branch"],["ایراد مشتری","defect"],["ریشهٔ ایراد","rootCause"],["قطعهٔ ریشه","rootPart"],["دسته‌بندی ایراد","defectCat"],["گروه فنی (کمکی)","defectGroup"],["تکرار ایراد در محصول","defectRepeat"],["علت استاندارد","causeStd"],["گروه ۶M","m6"],
+    ["برنچ","branch"],["ایراد مشتری","defect"],["ریشهٔ ایراد","rootCause"],["قطعه در تحلیل","analysisPart"],["قطعه (گروه‌بندی)","groupPath"],["دسته‌بندی ایراد","defectCat"],["گروه فنی (کمکی)","defectGroup"],["تکرار ایراد در محصول","defectRepeat"],["علت استاندارد","causeStd"],["گروه ۶M","m6"],
     ["شماره کلیم","claimNo"],["شماره کارت نارنجی","orangeCard"],["شماره فرم 8D","form8d"],["وضعیت فرم 8D","formStatus"],["دارای برگه بررسی","hasReview"]
   ];
   const head=cols.map(c=>c[0]).join(",");
