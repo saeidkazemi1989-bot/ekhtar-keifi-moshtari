@@ -363,6 +363,9 @@ main{padding:14px 18px 34px;max-width:1760px;margin:0 auto}
 .kpi .label{font-size:10.8px;color:var(--muted);font-weight:700;letter-spacing:.15px}
 .kpi .value{font-size:21px;font-weight:800;letter-spacing:-.4px;margin-top:2px;font-variant-numeric:tabular-nums}
 .kpi .sub{font-size:10.2px;color:var(--muted);margin-top:1px}
+.kpi .vs{font-size:10.2px;font-weight:700;margin-top:3px;display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.kpi .vs .up{color:#c2410c}.kpi .vs .down{color:#0e7490}.kpi .vs .flat{color:#64748b}
+.kpi .vs .muted{font-weight:500}
 .cov-card{
   background:#fff;border:1px solid var(--line);border-radius:10px;
   box-shadow:var(--shadow-sm);margin-bottom:12px;overflow:hidden;
@@ -1092,15 +1095,21 @@ function renderKpis(rows){
   const inScope=rows.filter(r=>r.inScope).length, inCatalog=rows.filter(r=>r.inCatalog).length;
   const products=uniq(rows,"product"), review=rows.filter(r=>r.review).length;
   const reviewed=rows.filter(r=>r.hasReview).length;
+  // مقایسهٔ سال جاری با سال قبل (روی همان ردیف‌های فیلترشده)
+  const curYear = state.year ? Number(state.year) : Math.max(...rows.map(r=>Number(r.year)||0), 0);
+  const curRows = curYear? rows.filter(r=>Number(r.year)===curYear) : [];
+  const prevRows = curYear? rows.filter(r=>Number(r.year)===curYear-1) : [];
+  const vs = (cur,prev,invert)=> (curYear && prevRows.length)
+    ? `<div class="vs">${deltaHtml(cur,prev,invert)} <span class="muted">نسبت به ${faDigits(curYear-1)}</span></div>` : "";
   const cards=[
-    ["اخطارهای کیفی",fmt(total),"ردیف انتخاب‌شده",""],
-    ["قطعات معیوب",fmt(qty),"جمع تعداد قطعات","blue"],
-    ["نمره منفی مرجع",fmt(score),"مجموع امتیاز","violet"],
-    ["محصولات درگیر",fmt(products),"محصول متمایز","amber"],
-    ["پوشش گروه‌بندی",pct(total?inScope/total:0),`${fmt(inScope)} ردیف در دامنه`,"rose"],
-    ["اخطارهای باز",fmt(open),`${fmt(auto)} خودکار خاتمه · ${fmt(reviewed)} برگه بررسی (${pct(total?reviewed/total:0)})`,"slate"]
+    ["اخطارهای کیفی",fmt(total),"ردیف انتخاب‌شده","", vs(curRows.length, prevRows.length, true)],
+    ["قطعات معیوب",fmt(qty),curYear?`سال ${faDigits(curYear)}: ${fmt(sum(curRows,"qty"))}`:"جمع تعداد قطعات","blue", vs(sum(curRows,"qty"), sum(prevRows,"qty"), true)],
+    ["نمره منفی مرجع",fmt(score),curYear?`سال ${faDigits(curYear)}: ${fmt(sum(curRows,"score"))}`:"مجموع امتیاز","violet", vs(sum(curRows,"score"), sum(prevRows,"score"), true)],
+    ["محصولات درگیر",fmt(products),curYear?`سال ${faDigits(curYear)}: ${fmt(uniq(curRows,"product"))}`:"محصول متمایز","amber", ""],
+    ["پوشش گروه‌بندی",pct(total?inScope/total:0),`${fmt(inScope)} ردیف در دامنه`,"rose", ""],
+    ["اخطارهای باز",fmt(open),`${fmt(auto)} خودکار خاتمه · ${fmt(reviewed)} برگه بررسی (${pct(total?reviewed/total:0)})`,"slate", vs(curRows.filter(r=>r.open).length, prevRows.filter(r=>r.open).length, true)]
   ];
-  $("#kpis").innerHTML=cards.map(([l,v,s,c],i)=>`<div class="kpi ${c}" data-kpi="${i}" role="button" tabindex="0" title="نمایش ریزش اطلاعات"><div class="label">${l}</div><div class="value">${v}</div><div class="sub">${s}</div></div>`).join("");
+  $("#kpis").innerHTML=cards.map(([l,v,s,c,extra],i)=>`<div class="kpi ${c}" data-kpi="${i}" role="button" tabindex="0" title="نمایش ریزش اطلاعات"><div class="label">${l}</div><div class="value">${v}</div><div class="sub">${s}</div>${extra||""}</div>`).join("");
   const drills=[
     ["همهٔ اخطارهای فیلترشده","مبنای گزارش؛ با فیلترهای بالای صفحه هماهنگ است",rows,()=>{state.quickFilter="";}],
     ["قطعات معیوب","جمع تعداد قطعات معیوب همین ردیف‌ها",rows,()=>{state.quickFilter="";}],
