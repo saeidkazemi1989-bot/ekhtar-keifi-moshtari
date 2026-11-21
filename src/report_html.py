@@ -410,6 +410,17 @@ main{padding:14px 18px 34px;max-width:1760px;margin:0 auto}
 .drill-table td{font-size:11.5px}
 .drill-table tbody tr{cursor:pointer}
 .drill-empty{border:1px dashed #d7dfec;border-radius:12px;padding:18px;text-align:center;color:var(--muted);font-size:11.5px;background:#fbfcff}
+/* مقایسهٔ سال جاری/قبل داخل ریزش اطلاعات */
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.cmp-side{border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:#f8fbff}
+.cmp-l{font-size:10.8px;color:var(--muted);font-weight:700}
+.cmp-v{font-size:19px;font-weight:800;font-variant-numeric:tabular-nums}
+.cmp-s{font-size:10.4px;color:var(--muted);margin-bottom:6px}
+.cmp-side .track{height:8px;background:#e8eef6;border-radius:2px;overflow:hidden}
+.cmp-side .fill{height:100%}
+.cmp-delta{margin-top:9px;font-size:11.4px}
+.cmp-delta .up{color:#c2410c;font-weight:700}.cmp-delta .down{color:#0e7490;font-weight:700}.cmp-delta .flat{color:#64748b;font-weight:700}
+@media(max-width:760px){.cmp{grid-template-columns:1fr}}
 @media(max-width:900px){.drill-stats{grid-template-columns:repeat(2,1fr)}.drill-grid{grid-template-columns:1fr}}
 /* شبکهٔ نمای کلی به سبک داشبورد مدیریتی */
 .ov-row{display:grid;gap:10px;margin-bottom:10px;align-items:start}
@@ -438,6 +449,16 @@ main{padding:14px 18px 34px;max-width:1760px;margin:0 auto}
 .legend-item .num{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
 .bars{display:flex;flex-direction:column;gap:9px}
 .bar-row{display:grid;grid-template-columns:minmax(110px,1.35fr) 3fr auto;gap:9px;align-items:center;font-size:11.5px;padding:2px 0}
+.bar-row.clickable{cursor:pointer;border-radius:5px;padding-inline:4px;margin-inline:-4px;transition:background .12s}
+.bar-row.clickable:hover{background:#eef6ff}
+.bar-row.clickable:focus-visible{outline:2px solid #7fb6ea;outline-offset:1px}
+.bar-row .track{position:relative}
+.bar-row .fill.prev{position:absolute;inset-block:0;inset-inline-start:0;background:#cbd8e6;opacity:.75;border-radius:2px}
+.bar-delta{display:inline-block;margin-inline-start:5px;font-size:10px;font-weight:700}
+.bar-delta .up{color:#c2410c}.bar-delta .down{color:#0e7490}.bar-delta .flat{color:#94a3b8}
+.ov-empty{border:1px dashed #d7dfec;border-radius:8px;padding:14px 12px;text-align:center;color:var(--muted);font-size:11.4px;background:#fbfdff;line-height:2}
+.bar-legend{display:flex;gap:14px;font-size:10.4px;color:var(--muted);margin-top:7px;flex-wrap:wrap;align-items:center}
+.bar-legend .sw{width:16px;height:7px;border-radius:2px;display:inline-block;margin-inline-end:5px;vertical-align:middle}
 .bar-row .label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#334155;font-weight:600}
 .bar-row .track{height:8px;background:#edf2f8;border-radius:2px;overflow:hidden}
 .bar-row .fill{height:100%;border-radius:2px;min-width:2px;transition:width .3s ease}
@@ -705,6 +726,9 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
         <div class="toolbar" style="margin-bottom:6px">
           <h3 style="margin:0;border:0;padding:0">روند اخطارها <span class="hint" id="trend-hint">مقایسه با سال قبل</span></h3>
           <div class="right">
+            <div class="seg" id="bars-compare" title="همان میله‌ها با سال قبل مقایسه شوند؛ میلهٔ خاکستری = سال قبل">
+              <button data-barscompare="on">میله‌ها: با سال قبل</button><button data-barscompare="off" class="active">میله‌ها: سال جاری</button>
+            </div>
             <div class="seg" id="trend-toggle">
               <button data-mode="month" class="active">ماهانه</button><button data-mode="year">سالانه</button>
             </div>
@@ -735,6 +759,8 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
       </div>
     </div>
 
+    <div class="bar-legend" id="bars-legend"></div>
+
     <!-- ردیف ۲: ریشه، قطعه، ایراد اعلام‌شده، واحد مسئول -->
     <div class="ov-row ov-row-four">
       <div class="card">
@@ -762,6 +788,7 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
       <div class="card">
         <h3>علت‌ها بر پایهٔ ۶M <span class="hint">از برگهٔ بررسی</span></h3>
         <div class="bars" id="ov-m6-bars"></div>
+        <div class="muted tiny" id="ov-m6-note" style="margin-top:6px"></div>
       </div>
       <div class="card">
         <h3>ایرادهای تکراردار <span class="hint">همان ایراد در یک محصول</span></h3>
@@ -997,9 +1024,9 @@ const confBadge = c => {
 const reviewBadge = r => r.review ? '<span class="badge red">بازبینی</span>' : "";
 const catalogBadge = r => r.inCatalog ? '<span class="badge green">کاتالوگ</span>' : (r.inScope ? '<span class="badge slate">سایر</span>' : '<span class="badge slate">خارج</span>');
 
-const state = {group:"",family:"",product:"",car:"",grade:"",status:"",priority:"",year:"",from:"",to:"",q:"",tab:"overview",warningSort:"priority",
+const state = {group:"",family:"",product:"",car:"",grade:"",status:"",priority:"",year:"",from:"",to:"",q:"",m6:"",make:"",tab:"overview",warningSort:"priority",
   review:"",branch:"",defect:"",root:"",rootPart:"",quickFilter:"",defectCat:"all",productQ:"",warningQ:"",reviewQ:"",defectQ:"",formQ:"",formStatus:"",formScope:"working",paretoQ:"",
-  page:1,pageSize:25,productSort:{key:"warnings",dir:-1},trendMode:"month",trendCompare:true};
+  page:1,pageSize:25,productSort:{key:"warnings",dir:-1},trendMode:"month",trendCompare:true,barsCompare:false};
 let currentProducts = [];
 let currentWarnings = [];
 let currentReviews = [];
@@ -1017,7 +1044,8 @@ function byNewest(a,b){
 function haystack(r){
   return [r.part,r.origin,r.tech,r.code,r.rahkaran,r.product,r.family,r.group,r.branch,r.car,r.id,r.error,r.type,r.cause,r.causeStd,r.m6,r.defect,r.defectCat,r.defectGroup,r.action].join(" ").toLowerCase();
 }
-function applyFilters(){
+function applyFilters(opts){
+  opts=opts||{};
   const q = state.q.trim().toLowerCase();
   return DATA.warnings.filter(r=>{
     if(state.group && r.group!==state.group) return false;
@@ -1027,6 +1055,8 @@ function applyFilters(){
     if(state.defect && r.defect!==state.defect) return false;
     if(state.root && r.rootCause!==state.root) return false;
     if(state.rootPart && r.analysisPart!==state.rootPart) return false;
+    if(state.m6 && (r.m6||"نامشخص")!==state.m6) return false;
+    if(state.make && r.make!==state.make) return false;
     if(state.quickFilter==="review" && !isUnderReview(r)) return false;
     if(state.quickFilter==="notreceived" && !isNotReceived(r)) return false;
     if(state.car && r.car!==state.car) return false;
@@ -1036,9 +1066,11 @@ function applyFilters(){
     if(state.priority && String(r.priority)!==state.priority) return false;
     if(state.review==="yes" && !r.hasReview) return false;
     if(state.review==="no" && r.hasReview) return false;
-    if(state.year && String(r.year)!==state.year) return false;
-    if(state.from && monthKey(r) && monthKey(r)<Number(state.from)) return false;
-    if(state.to && monthKey(r) && monthKey(r)>Number(state.to)) return false;
+    if(!opts.skipYear){
+      if(state.year && String(r.year)!==state.year) return false;
+      if(state.from && monthKey(r) && monthKey(r)<Number(state.from)) return false;
+      if(state.to && monthKey(r) && monthKey(r)>Number(state.to)) return false;
+    }
     if(q && !haystack(r).includes(q)) return false;
     return true;
   });
@@ -1095,19 +1127,21 @@ function renderKpis(rows){
   const inScope=rows.filter(r=>r.inScope).length, inCatalog=rows.filter(r=>r.inCatalog).length;
   const products=uniq(rows,"product"), review=rows.filter(r=>r.review).length;
   const reviewed=rows.filter(r=>r.hasReview).length;
-  // مقایسهٔ سال جاری با سال قبل (روی همان ردیف‌های فیلترشده)
-  const curYear = state.year ? Number(state.year) : Math.max(...rows.map(r=>Number(r.year)||0), 0);
-  const curRows = curYear? rows.filter(r=>Number(r.year)===curYear) : [];
-  const prevRows = curYear? rows.filter(r=>Number(r.year)===curYear-1) : [];
+  // مقایسهٔ سال جاری با سال قبل؛ با فیلتر سال هم سال قبلِ همان فیلتر سنجیده می‌شود
+  const cctx = compareContext();
+  const curYear = cctx.cur;
+  const curRows = cctx.curRows;
+  const prevRows = cctx.prevRows;
   const vs = (cur,prev,invert)=> (curYear && prevRows.length)
     ? `<div class="vs">${deltaHtml(cur,prev,invert)} <span class="muted">نسبت به ${faDigits(curYear-1)}</span></div>` : "";
+  const vsRows = (pred)=> vs(curRows.filter(pred).length, prevRows.filter(pred).length, true);
   const cards=[
-    ["اخطارهای کیفی",fmt(total),"ردیف انتخاب‌شده","", vs(curRows.length, prevRows.length, true)],
+    ["اخطارهای کیفی",fmt(total),curYear?`سال ${faDigits(curYear)}: ${fmt(curRows.length)}`:"ردیف انتخاب‌شده","", vs(curRows.length, prevRows.length, true)],
     ["قطعات معیوب",fmt(qty),curYear?`سال ${faDigits(curYear)}: ${fmt(sum(curRows,"qty"))}`:"جمع تعداد قطعات","blue", vs(sum(curRows,"qty"), sum(prevRows,"qty"), true)],
     ["نمره منفی مرجع",fmt(score),curYear?`سال ${faDigits(curYear)}: ${fmt(sum(curRows,"score"))}`:"مجموع امتیاز","violet", vs(sum(curRows,"score"), sum(prevRows,"score"), true)],
     ["محصولات درگیر",fmt(products),curYear?`سال ${faDigits(curYear)}: ${fmt(uniq(curRows,"product"))}`:"محصول متمایز","amber", ""],
     ["پوشش گروه‌بندی",pct(total?inScope/total:0),`${fmt(inScope)} ردیف در دامنه`,"rose", ""],
-    ["اخطارهای باز",fmt(open),`${fmt(auto)} خودکار خاتمه · ${fmt(reviewed)} برگه بررسی (${pct(total?reviewed/total:0)})`,"slate", vs(curRows.filter(r=>r.open).length, prevRows.filter(r=>r.open).length, true)]
+    ["اخطارهای باز",fmt(open),`${fmt(auto)} خودکار خاتمه · ${fmt(reviewed)} برگه بررسی (${pct(total?reviewed/total:0)})`,"slate", vsRows(r=>r.open)]
   ];
   $("#kpis").innerHTML=cards.map(([l,v,s,c,extra],i)=>`<div class="kpi ${c}" data-kpi="${i}" role="button" tabindex="0" title="نمایش ریزش اطلاعات"><div class="label">${l}</div><div class="value">${v}</div><div class="sub">${s}</div>${extra||""}</div>`).join("");
   const drills=[
@@ -1282,20 +1316,186 @@ function openBreakdown(title,subtitle,rows,opts){
   });
   $("#modal").classList.remove("hidden");
 }
+/* ─────────────────── ریزش اطلاعات هر گروه (۶M، واحد، ایراد، …) ───────────────────
+   برای هر میله در نمای کلی: پنجرهٔ ریزش با آمار، مقایسهٔ سال جاری/قبل،
+   ترکیب وضعیت، قطعهٔ معیوب و فهرست همان اخطارها. */
+/* مجموعهٔ مقایسه: همان فیلترها ولی بدون قید سال، تا وقتی «سال» فیلتر شده
+   هم بتوانیم سال قبل را کنارش بگذاریم. اگر ماه هم فیلتر شده باشد، همان
+   بازهٔ ماهانه در سال قبل اعمال می‌شود. */
+function compareContext(){
+  const all=applyFilters({skipYear:true});
+  const counts=new Map();
+  DATA.warnings.forEach(r=>{ const y=Number(r.year)||0; if(y) counts.set(y,(counts.get(y)||0)+1); });
+  const years=Array.from(counts.keys()).sort((a,b)=>a-b);
+  const cur=state.year?Number(state.year):(years[years.length-1]||0);
+  const prev=cur?cur-1:0;
+  const fromM=state.from?Number(state.from)%100:0;
+  const toM=state.to?Number(state.to)%100:0;
+  const inRange=r=>{
+    if(!fromM&&!toM) return true;
+    const m=Number(r.monthKey||0)%100;
+    if(!m) return true;
+    if(fromM&&m<fromM) return false;
+    if(toM&&m>toM) return false;
+    return true;
+  };
+  const curRows=all.filter(r=>Number(r.year)===cur && inRange(r));
+  const prevRows=prev?all.filter(r=>Number(r.year)===prev && inRange(r)):[];
+  return {cur, prev, all, curRows, prevRows, inRange};
+}
+function compareYears(){
+  const counts=new Map();
+  DATA.warnings.forEach(r=>{ const y=Number(r.year)||0; if(y) counts.set(y,(counts.get(y)||0)+1); });
+  const years=Array.from(counts.keys()).sort((a,b)=>a-b);
+  const cur=state.year?Number(state.year):(years[years.length-1]||0);
+  return {cur, prev:cur?cur-1:0};
+}
+/* کارت مقایسهٔ سال جاری/سال قبل داخل ریزش؛ مستقل از فیلتر سال محاسبه می‌شود
+   تا وقتی «سال» فیلتر شده هم سال قبل کنارش دیده شود. */
+function drillCompareCard(match){
+  const ctx=compareContext();
+  if(!ctx.cur) return "";
+  const curCount=ctx.curRows.filter(match).length;
+  const prevCount=ctx.prevRows.filter(match).length;
+  const max=Math.max(1,curCount,prevCount);
+  const shareCur=ctx.curRows.length?curCount/ctx.curRows.length:0;
+  const sharePrev=ctx.prevRows.length?prevCount/ctx.prevRows.length:0;
+  return `<div class="drill-card" style="margin-bottom:12px">
+    <h4>مقایسه با سال قبل ${state.year?`(سال ${faDigits(ctx.cur)} در برابر ${faDigits(ctx.prev)})`:""}</h4>
+    <div class="cmp">
+      <div class="cmp-side">
+        <div class="cmp-l">سال ${faDigits(ctx.cur)}</div>
+        <div class="cmp-v">${fmt(curCount)}</div>
+        <div class="cmp-s">${pct(shareCur)} از ${fmt(ctx.curRows.length)} اخطار سال</div>
+        <div class="track"><div class="fill" style="width:${curCount/max*100}%;background:#0b64c8"></div></div>
+      </div>
+      <div class="cmp-side">
+        <div class="cmp-l">سال ${faDigits(ctx.prev)}</div>
+        <div class="cmp-v">${fmt(prevCount)}</div>
+        <div class="cmp-s">${pct(sharePrev)} از ${fmt(ctx.prevRows.length)} اخطار سال</div>
+        <div class="track"><div class="fill" style="width:${prevCount/max*100}%;background:#9fb3c8"></div></div>
+      </div>
+    </div>
+    <div class="cmp-delta">${deltaHtml(curCount,prevCount,true)} <span class="muted tiny">تغییر تعداد این گروه نسبت به سال قبل</span></div>
+  </div>`;
+}
+function openGroupDrill(name,cfg){
+  cfg=cfg||{};
+  const base=applyFilters();
+  const field=cfg.field||"m6";
+  const value=cfg.value||name;
+  const match=r=>(r[field]||"نامشخص")===value;
+  const rows=base.filter(match);
+  const open=rows.filter(r=>r.open).length;
+  const review=rows.filter(isUnderReview).length;
+  const qty=sum(rows,"qty");
+  const products=new Set(rows.map(r=>r.product)).size;
+  const roots=rootRows(rows).filter(i=>!isHiddenRoot(i.name)).slice(0,7);
+  const parts=paretoRows(rows.filter(r=>!!r.analysisPart)).slice(0,7);
+  const defects=defectRows(rows).slice(0,7);
+  const statusItems=[
+    {name:"در حال بررسی",warnings:review},
+    {name:"دریافت نشده",warnings:open-review},
+    {name:"خاتمه‌یافته",warnings:rows.length-open}
+  ].filter(i=>i.warnings>0);
+  const list=rows.slice().sort(byPriority).slice(0,40);
+  $("#modal-title").textContent=cfg.title?`${cfg.title}: ${name}`:`ریزش اطلاعات: ${name}`;
+  $("#modal-body").innerHTML=`
+    <div class="drill-hero">
+      <div class="drill-kicker">${esc(cfg.kicker||"ریزش اطلاعات")}</div>
+      <div class="drill-title">${esc(name)}</div>
+      <div class="drill-sub">${esc(cfg.subtitle||"")}${state.year?` · سال ${faDigits(state.year)}`:""}</div>
+      <div class="drill-stats">
+        ${[["اخطار",fmt(rows.length)],["باز",fmt(open)],["در حال بررسی",fmt(review)],["قطعه معیوب",fmt(qty)],["محصول",fmt(products)]]
+          .map(([l,v])=>`<div class="drill-stat"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("")}
+      </div>
+    </div>
+    ${drillCompareCard(match)}
+    <div class="drill-grid">
+      <div class="drill-card"><h4>ریشهٔ ایراد</h4>${drillBars(roots,"#0b64c8")}</div>
+      <div class="drill-card"><h4>قطعه در تحلیل (پارتو)</h4>${drillBars(parts,"#0e7f9a")}</div>
+    </div>
+    <div class="drill-grid">
+      <div class="drill-card"><h4>پرتکرارترین ایراد مشتری</h4>${drillBars(defects,"#d92d5c")}</div>
+      <div class="drill-card"><h4>وضعیت اخطارها</h4>${drillBars(statusItems,"#1e4fd8")}</div>
+    </div>
+    <div class="drill-card">
+      <h4>ردیف‌های همین گروه (${fmt(Math.min(40,rows.length))} از ${fmt(rows.length)}) — برای پروندهٔ اخطار کلیک کنید</h4>
+      ${list.length?`<div class="table-wrap drill-table" style="max-height:340px"><table><thead><tr>
+        <th>سریال</th><th>تاریخ</th><th>شرح قطعه</th><th>ایراد مشتری</th><th>ریشه</th><th>وضعیت</th></tr></thead>
+        <tbody>${list.map(r=>`<tr data-drill-id="${r.id}">
+          <td class="num">${esc(faDigits(r.id))}</td><td class="tiny muted">${esc(faDigits(r.date))}</td>
+          <td class="tiny" title="${esc(r.part)}">${esc(shorten(r.part,32))}</td>
+          <td class="tiny" title="${esc(r.defect)}">${esc(shorten(r.defect,34)||"—")}</td>
+          <td class="tiny">${rootText(r)==="—"?'<span class="muted">—</span>':`<span class="badge amber">${esc(rootText(r))}</span>`}</td>
+          <td>${statusBadge(r)}</td></tr>`).join("")}</tbody></table></div>`:'<div class="drill-empty">ردیفی در این گروه نیست.</div>'}
+    </div>`;
+  $$("#modal-body [data-drill-id]").forEach(tr=>tr.addEventListener("click",()=>openWarning(Number(tr.dataset.drillId))));
+  const foot=$("#modal-foot");
+  if(foot) foot.innerHTML=`<div class="muted tiny">${fmt(rows.length)} اخطار · ${cfg.unit||""}</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      ${cfg.apply?'<button class="btn primary" id="drill-list">نمایش در فهرست اخطارها</button>':""}
+      <button class="btn" id="drill-close">بستن</button>
+    </div>`;
+  const closeBtn=$("#drill-close");
+  if(closeBtn) closeBtn.addEventListener("click",()=>$("#modal").classList.add("hidden"));
+  const go=$("#drill-list");
+  if(go) go.addEventListener("click",()=>{
+    cfg.apply();
+    state.page=1; switchTab("warnings"); render();
+    $("#modal").classList.add("hidden");
+  });
+  $("#modal").classList.remove("hidden");
+}
+/* گزینه‌های ریزش برای هر میلهٔ نمای کلی */
+const BAR_DRILL = {
+  root:  {title:"ریشهٔ ایراد", field:"rootCause", kicker:"ریزش اطلاعات · ریشهٔ ایراد",
+          subtitle:"همهٔ اخطارهایی که متنشان این ریشه را نشان می‌دهد",
+          apply:name=>{state.root=name; const sel=$("#f-root"); if(sel) sel.value=name;}},
+  part:  {title:"قطعه در تحلیل", field:"analysisPart", kicker:"ریزش اطلاعات · قطعهٔ معیوب",
+          subtitle:"قطعه‌ای که در «آنالیز علت ایراد» برگهٔ بررسی نام برده شده است",
+          apply:name=>{state.rootPart=name; const sel=$("#f-rootpart"); if(sel) sel.value=name;}},
+  defect:{title:"ایراد اعلام‌شده", field:"defectGroup", kicker:"ریزش اطلاعات · ایراد مشتری",
+          subtitle:"گروه ایرادی که مشتری در «توضیحات» اعلام کرده است"},
+  make:  {title:"واحد مسئول", field:"make", kicker:"ریزش اطلاعات · واحد مسئول",
+          subtitle:"گروه ساخت (واحد سازنده/مسئول) همین اخطارها", apply:name=>{state.make=name;}},
+  m6:    {title:"علت‌ها بر پایهٔ ۶M", field:"m6", kicker:"ریزش اطلاعات · ۶M",
+          subtitle:"دستهٔ علت (مواد، روش، تجهیزات، نیروی انسانی، محیط، اندازه‌گیری) از برگهٔ بررسی",
+          apply:name=>{state.m6=name;}}, 
+  group: {title:"گروه محصول", field:"group", kicker:"ریزش اطلاعات · گروه محصول",
+          subtitle:"همهٔ اخطارهای همین گروه محصول", apply:name=>{state.group=name; state.family=""; state.product="";}},
+  family:{title:"خانواده محصول", field:"family", kicker:"ریزش اطلاعات · خانواده محصول",
+          subtitle:"همهٔ اخطارهای همین خانواده", apply:name=>{state.family=name;}},
+  product:{title:"محصول", field:"product", kicker:"ریزش اطلاعات · محصول",
+          subtitle:"همهٔ اخطارهای همین محصول", apply:name=>{state.product=name;}}
+};
+function barClick(kind){
+  return name=>{
+    const base=BAR_DRILL[kind]||{title:kind,field:kind};
+    const cfg=Object.assign({}, base);
+    if(base.apply) cfg.apply=()=>base.apply(name);
+    openGroupDrill(name,cfg);
+  };
+}
 function goRoot(name){
-  openBreakdown(`ریشهٔ ایراد: ${name}`,"همهٔ اخطارهایی که متنشان این ریشه را نشان می‌دهد",
-    applyFilters().filter(r=>r.rootCause===name),
-    {apply:()=>{state.root=name;state.page=1;const sel=$("#f-root");if(sel)sel.value=name;}});
+  openGroupDrill(name, {title:"ریشهٔ ایراد", field:"rootCause", kicker:"ریزش اطلاعات · ریشهٔ ایراد",
+    subtitle:"همهٔ اخطارهایی که متنشان این ریشه را نشان می‌دهد",
+    apply:()=>{state.root=name;state.page=1;const sel=$("#f-root");if(sel)sel.value=name;}});
 }
 function goRootPart(name){
-  openBreakdown(`قطعه در تحلیل: ${name}`,"قطعه‌ای که در «آنالیز علت ایراد» همین اخطارها نام برده شده است",
-    applyFilters().filter(r=>r.analysisPart===name),
-    {mode:"part",apply:()=>{state.rootPart=name;state.page=1;const sel=$("#f-rootpart");if(sel)sel.value=name;}});
+  openGroupDrill(name, {title:"قطعه در تحلیل", field:"analysisPart", kicker:"ریزش اطلاعات · قطعهٔ معیوب",
+    subtitle:"قطعه‌ای که در «آنالیز علت ایراد» همین اخطارها نام برده شده است", mode:"part",
+    apply:()=>{state.rootPart=name;state.page=1;const sel=$("#f-rootpart");if(sel)sel.value=name;}});
 }
 function goDefect(name){
-  openBreakdown(`ایراد مشتری: ${name}`,"همهٔ اخطارهایی که همین ایراد برایشان ثبت شده است",
-    applyFilters().filter(r=>r.defect===name),
-    {apply:()=>{state.defect=name;state.page=1;}});
+  openGroupDrill(name, {title:"ایراد مشتری", field:"defect", kicker:"ریزش اطلاعات · ایراد مشتری",
+    subtitle:"همهٔ اخطارهایی که همین ایراد برایشان ثبت شده است",
+    apply:()=>{state.defect=name;state.page=1;}});
+}
+function goGroup(name){
+  openGroupDrill(name, {title:"گروه محصول", field:"group", kicker:"ریزش اطلاعات · گروه محصول",
+    subtitle:"همهٔ اخطارهای همین گروه محصول",
+    apply:()=>{state.group=name;state.family="";state.product="";state.page=1;syncSelects();}});
 }
 function renderRootPanel(rows){
   const all=rootRows(rows);
@@ -1359,6 +1559,8 @@ function renderActiveFilters(){
   if(state.root) chips.push(`<span class="fchip">ریشه: ${esc(state.root)}<button data-clear="root" title="حذف فیلتر">×</button></span>`);
   if(state.rootPart) chips.push(`<span class="fchip">قطعهٔ تحلیل: ${esc(state.rootPart)}<button data-clear="rootPart" title="حذف فیلتر">×</button></span>`);
   if(state.defect) chips.push(`<span class="fchip">ایراد مشتری: ${esc(state.defect)}<button data-clear="defect" title="حذف فیلتر">×</button></span>`);
+  if(state.m6) chips.push(`<span class="fchip">۶M: ${esc(state.m6)}<button data-clear="m6" title="حذف فیلتر">×</button></span>`);
+  if(state.make) chips.push(`<span class="fchip">واحد مسئول: ${esc(state.make)}<button data-clear="make" title="حذف فیلتر">×</button></span>`);
   if(state.quickFilter) chips.push(`<span class="fchip">${state.quickFilter==="review"?"فقط در حال بررسی":"فقط دریافت‌نشده"}<button data-clear="quickFilter" title="حذف فیلتر">×</button></span>`);
   if(!chips.length){ el.innerHTML=""; return; }
   el.innerHTML=chips.join("")+`<button class="fchip clear" id="clear-linked" style="cursor:pointer">پاک‌کردن فیلترهای لینک‌شده</button>`;
@@ -1415,9 +1617,7 @@ function renderDonut(el,rows){
     <text x="${c}" y="${c-6}" text-anchor="middle" font-size="22" font-weight="800" fill="#0f172a">${fmt(total)}</text>
     <text x="${c}" y="${c+16}" text-anchor="middle" font-size="10" fill="#64748b">اخطار</text>
   </svg><div class="donut-legend">${legend}</div></div>`;
-  $$(".legend-item",el).forEach(item=>item.addEventListener("click",()=>{
-    state.group=item.dataset.group; state.family=""; state.product=""; syncSelects(); render();
-  }));
+  $$(".legend-item",el).forEach(item=>item.addEventListener("click",()=>goGroup(item.dataset.group)));
 }
 
 /* ───────────────────────── روند اخطارها با مقایسهٔ سال قبل ─────────────────────────
@@ -1447,17 +1647,20 @@ function renderTrendLegacy(el,rows){ /* نگه‌داشته‌شده برای س
 function renderTrend(el,rows){
   const mode=state.trendMode||"month";
   const compare=state.trendCompare!==false;
-  if(!rows.length){ empty(el,"در بازهٔ انتخاب‌شده اخطاری وجود ندارد"); $("#trend-legend").innerHTML=""; $("#trend-table").innerHTML=""; return; }
-  const years=trendYears(rows);
-  if(!years.length){ empty(el,"سال شمسی برای این ردیف‌ها ثبت نشده است"); return; }
-
-  // ── سال مبنا: بزرگ‌ترین سالی که در فیلتر فعلی داده دارد
-  const currentYear = state.year ? Number(state.year) : years[years.length-1];
-  const previousYear = currentYear-1;
+  const ctx=compareContext();
+  const curYear=ctx.cur, prevYear=ctx.prev;
+  const names=["فروردین","اردیبهشت","خرداد","تیر","مرداد","شهریور","مهر","آبان","آذر","دی","بهمن","اسفند"];
+  if(!rows.length){
+    empty(el,"در بازهٔ انتخاب‌شده اخطاری وجود ندارد");
+    if($("#trend-legend")) $("#trend-legend").innerHTML="";
+    if($("#trend-table")) $("#trend-table").innerHTML="";
+    if($("#trend-kpis")) $("#trend-kpis").innerHTML="";
+    return;
+  }
 
   if(mode==="month"){
-    const cur=trendMonthCounts(rows,currentYear);
-    const prev=compare?trendMonthCounts(rows,previousYear):null;
+    const cur=trendMonthCounts(ctx.curRows,curYear);
+    const prev=compare?trendMonthCounts(ctx.prevRows,prevYear):null;
     const W=880,H=280,pad={l:44,r:16,t:16,b:40};
     const iw=W-pad.l-pad.r, ih=H-pad.t-pad.b;
     const max=Math.max(1,...cur,...(prev||[0]));
@@ -1469,12 +1672,11 @@ function renderTrend(el,rows){
       grid+=`<line x1="${pad.l}" y1="${yy}" x2="${W-pad.r}" y2="${yy}" stroke="#eef3f9" stroke-width="1"/>`;
       grid+=`<text x="${pad.l-6}" y="${yy+4}" text-anchor="end" font-size="9" fill="#94a3b8">${fmt(Math.round(max*g/4))}</text>`;
     }
-    const names=["فروردین","اردیبهشت","خرداد","تیر","مرداد","شهریور","مهر","آبان","آذر","دی","بهمن","اسفند"];
     names.forEach((n,i)=>labels+=`<text x="${x(i)}" y="${H-16}" text-anchor="middle" font-size="9" fill="#64748b">${esc(n)}</text>`);
     const curPts=cur.map((v,i)=>`${x(i)},${y(v)}`).join(" ");
     const prevPts=prev?prev.map((v,i)=>`${x(i)},${y(v)}`).join(" "):"";
-    const curDots=cur.map((v,i)=>`<circle cx="${x(i)}" cy="${y(v)}" r="3.4" fill="#0b64c8"><title>${names[i]} ${faDigits(currentYear)}: ${fmt(v)} اخطار</title></circle>`).join("");
-    const prevDots=prev?prev.map((v,i)=>`<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="#fff" stroke="#8aa4c0" stroke-width="1.6"><title>${names[i]} ${faDigits(previousYear)}: ${fmt(v)} اخطار</title></circle>`).join(""):"";
+    const curDots=cur.map((v,i)=>`<circle cx="${x(i)}" cy="${y(v)}" r="3.4" fill="#0b64c8"><title>${names[i]} ${faDigits(curYear)}: ${fmt(v)} اخطار</title></circle>`).join("");
+    const prevDots=prev?prev.map((v,i)=>`<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="#fff" stroke="#8aa4c0" stroke-width="1.6"><title>${names[i]} ${faDigits(prevYear)}: ${fmt(v)} اخطار</title></circle>`).join(""):"";
     const curVals=cur.map((v,i)=>v?`<text x="${x(i)}" y="${y(v)-8}" text-anchor="middle" font-size="9.5" font-weight="700" fill="#0b64c8">${fmt(v)}</text>`:"").join("");
     el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img">
       <defs><linearGradient id="gradCur" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#0b64c8" stop-opacity=".16"/><stop offset="1" stop-color="#0b64c8" stop-opacity="0"/></linearGradient></defs>
@@ -1485,39 +1687,40 @@ function renderTrend(el,rows){
       ${prevDots}${curDots}${curVals}${labels}
     </svg>`;
     const curTotal=trendSum(cur), prevTotal=prev?trendSum(prev):null;
-    // حداکثر تا همین ماه در سال جاری برای مقایسهٔ منصفانه
     const lastMonth=cur.reduce((acc,v,i)=>v?i+1:acc,0)||12;
     const curUpto=trendSum(cur.slice(0,lastMonth));
     const prevUpto=prev?trendSum(prev.slice(0,lastMonth)):null;
     const legend=$("#trend-legend");
     if(legend){
-      legend.innerHTML=`<span class="k"><span class="sw" style="background:#0b64c8"></span>سال ${faDigits(currentYear)}${state.year?" (فیلتر)":""}</span>`+
-        (compare?`<span class="k"><span class="sw dash"></span>سال ${faDigits(previousYear)}</span>`:`<span class="muted">مقایسه خاموش است</span>`)+
+      legend.innerHTML=`<span class="k"><span class="sw" style="background:#0b64c8"></span>سال ${faDigits(curYear)}${state.year?" (فیلتر سال)":""}</span>`+
+        (compare?`<span class="k"><span class="sw dash"></span>سال ${faDigits(prevYear)}${state.year?" (سال قبل فیلتر)":""}</span>`:`<span class="muted">مقایسه خاموش است</span>`)+
         `<span class="muted tiny">مقایسه تا پایان ${esc(names[lastMonth-1]||"")}</span>`;
     }
+    const kpiBox=$("#trend-kpis");
+    if(kpiBox) kpiBox.innerHTML=`
+        <div class="trend-kpi"><div class="l">اخطار سال ${faDigits(curYear)}</div><div class="v">${fmt(curTotal)}</div><div class="d">${deltaHtml(curTotal,prevTotal,true)} نسبت به سال قبل</div></div>
+        <div class="trend-kpi"><div class="l">سال ${faDigits(prevYear)}</div><div class="v">${prevTotal===null?"—":fmt(prevTotal)}</div><div class="d flat">کل سال</div></div>
+        <div class="trend-kpi"><div class="l">هم‌بازه تا ${esc(names[lastMonth-1]||"")}</div><div class="v">${fmt(curUpto)} <span class="muted tiny">/ ${prevUpto===null?"—":fmt(prevUpto)}</span></div><div class="d">${deltaHtml(curUpto,prevUpto,true)}</div></div>
+        <div class="trend-kpi"><div class="l">اختلاف تا امروز</div><div class="v">${prevUpto===null?"—":fmt(curUpto-prevUpto)}</div><div class="d flat">اخطار</div></div>`;
     const table=$("#trend-table");
     if(table){
       const head=names.map(n=>`<th>${esc(n)}</th>`).join("");
       const rowCur=cur.map(v=>`<td>${fmt(v)}</td>`).join("");
       const rowPrev=prev?prev.map(v=>`<td>${fmt(v)}</td>`).join(""):"";
       const rowDiff=prev?cur.map((v,i)=>`<td>${v-(prev[i]||0)>0?"+":""}${fmt(v-(prev[i]||0))}</td>`).join(""):"";
-      const kpiBox=$("#trend-kpis");
-      if(kpiBox) kpiBox.innerHTML=`
-          <div class="trend-kpi"><div class="l">اخطار سال ${faDigits(currentYear)}</div><div class="v">${fmt(curTotal)}</div><div class="d">${deltaHtml(curTotal,prevTotal,true)} نسبت به سال قبل</div></div>
-          <div class="trend-kpi"><div class="l">سال ${faDigits(previousYear)}</div><div class="v">${prevTotal===null?"—":fmt(prevTotal)}</div><div class="d flat">کل سال</div></div>
-          <div class="trend-kpi"><div class="l">هم‌بازه تا ${esc(names[lastMonth-1]||"")}</div><div class="v">${fmt(curUpto)} <span class="muted tiny">/ ${prevUpto===null?"—":fmt(prevUpto)}</span></div><div class="d">${deltaHtml(curUpto,prevUpto,true)}</div></div>
-          <div class="trend-kpi"><div class="l">اختلاف تا امروز</div><div class="v">${prevUpto===null?"—":fmt(curUpto-prevUpto)}</div><div class="d flat">اخطار</div></div>`;
       table.innerHTML=compare?`<table class="trend-table"><thead><tr><th class="lbl">ماه / سال</th>${head}<th>جمع</th></tr></thead><tbody>
-          <tr class="cur"><td class="lbl">${faDigits(currentYear)}</td>${rowCur}<td><b>${fmt(curTotal)}</b></td></tr>
-          <tr class="prev"><td class="lbl">${faDigits(previousYear)}</td>${rowPrev}<td><b>${fmt(prevTotal||0)}</b></td></tr>
+          <tr class="cur"><td class="lbl">${faDigits(curYear)}</td>${rowCur}<td><b>${fmt(curTotal)}</b></td></tr>
+          <tr class="prev"><td class="lbl">${faDigits(prevYear)}</td>${rowPrev}<td><b>${fmt(prevTotal||0)}</b></td></tr>
           <tr><td class="lbl">اختلاف</td>${rowDiff}<td><b>${fmt(curTotal-(prevTotal||0))}</b></td></tr>
         </tbody></table>`:"";
     }
     return;
   }
 
-  // ── حالت سالانه
-  const counts=years.map(y=>rows.filter(r=>Number(r.year)===y).length);
+  // ── حالت سالانه: همهٔ سال‌ها از مجموعهٔ فیلترشده (بدون قید سال)
+  const allRows=ctx.all;
+  const years=trendYears(allRows);
+  const counts=years.map(y=>allRows.filter(r=>Number(r.year)===y).length);
   const W=880,H=270,pad={l:46,r:16,t:16,b:38};
   const iw=W-pad.l-pad.r, ih=H-pad.t-pad.b;
   const max=Math.max(1,...counts);
@@ -1534,25 +1737,25 @@ function renderTrend(el,rows){
   years.forEach((yr,i)=>{ if(i%stepLbl===0||i===years.length-1) labels+=`<text x="${x(i)}" y="${H-14}" text-anchor="middle" font-size="9" fill="#64748b">${faDigits(yr)}</text>`; });
   const bars=years.map((yr,i)=>{
     const bw=Math.max(6,Math.min(30,step*0.55));
-    const isCur=yr===currentYear;
+    const isCur=yr===curYear;
     return `<rect x="${x(i)-bw/2}" y="${y(counts[i])}" width="${bw}" height="${pad.t+ih-y(counts[i])}" rx="2" fill="${isCur?"#0b64c8":"#9cc3e8"}"><title>${faDigits(yr)}: ${fmt(counts[i])} اخطار</title></rect>`;
   }).join("");
   el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img">${grid}${bars}${labels}</svg>`;
   const legend=$("#trend-legend");
-  if(legend) legend.innerHTML=`<span class="k"><span class="sw" style="background:#0b64c8"></span>سال جاری</span><span class="k"><span class="sw" style="background:#9cc3e8"></span>سال‌های قبل</span>`;
-  const order=years.slice().reverse().slice(0,10);
-  const thisYearCount=rows.filter(r=>Number(r.year)===currentYear).length;
-  const lastYearCount=rows.filter(r=>Number(r.year)===previousYear).length;
+  if(legend) legend.innerHTML=`<span class="k"><span class="sw" style="background:#0b64c8"></span>سال مبنا (${faDigits(curYear)})</span><span class="k"><span class="sw" style="background:#9cc3e8"></span>سال‌های دیگر</span>`;
+  const thisYearCount=allRows.filter(r=>Number(r.year)===curYear).length;
+  const lastYearCount=allRows.filter(r=>Number(r.year)===prevYear).length;
   const kpiBox=$("#trend-kpis");
   if(kpiBox) kpiBox.innerHTML=`
-      <div class="trend-kpi"><div class="l">اخطار سال ${faDigits(currentYear)}</div><div class="v">${fmt(thisYearCount)}</div><div class="d">${deltaHtml(thisYearCount,lastYearCount,true)} نسبت به سال قبل</div></div>
-      <div class="trend-kpi"><div class="l">سال ${faDigits(previousYear)}</div><div class="v">${fmt(lastYearCount)}</div><div class="d flat">کل سال</div></div>
+      <div class="trend-kpi"><div class="l">اخطار سال ${faDigits(curYear)}</div><div class="v">${fmt(thisYearCount)}</div><div class="d">${deltaHtml(thisYearCount,lastYearCount,true)} نسبت به سال قبل</div></div>
+      <div class="trend-kpi"><div class="l">سال ${faDigits(prevYear)}</div><div class="v">${fmt(lastYearCount)}</div><div class="d flat">کل سال</div></div>
       <div class="trend-kpi"><div class="l">بیشترین سال</div><div class="v">${faDigits(years[counts.indexOf(Math.max(...counts))]||"—")}</div><div class="d flat">${fmt(Math.max(...counts))} اخطار</div></div>
       <div class="trend-kpi"><div class="l">میانگین سالانه</div><div class="v">${fmt(Math.round(counts.reduce((a,b)=>a+b,0)/counts.length))}</div><div class="d flat">${faDigits(years.length)} سال</div></div>`;
+  const order=years.slice().reverse().slice(0,10);
   const table=$("#trend-table");
-  if(table) table.innerHTML=`<table class="trend-table"><thead><tr><th class="lbl">سال</th>${order.map(y=>`<th>${faDigits(y)}</th>`).join("")}</tr></thead>
-    <tbody><tr class="cur"><td class="lbl">اخطار</td>${order.map(y=>`<td>${fmt(rows.filter(r=>Number(r.year)===y).length)}</td>`).join("")}</tr>
-    <tr><td class="lbl">تغییر</td>${order.map((y,i)=>{ if(i===order.length-1) return `<td>—</td>`; const now=rows.filter(r=>Number(r.year)===y).length, before=rows.filter(r=>Number(r.year)===order[i+1]).length; return `<td>${deltaHtml(now,before,true)}</td>`; }).join("")}</tr></tbody></table>`;
+  if(table) table.innerHTML=`<table class="trend-table"><thead><tr><th class="lbl">سال</th>${order.map(yy=>`<th>${faDigits(yy)}</th>`).join("")}</tr></thead>
+    <tbody><tr class="cur"><td class="lbl">اخطار</td>${order.map(yy=>`<td>${fmt(allRows.filter(r=>Number(r.year)===yy).length)}</td>`).join("")}</tr>
+    <tr><td class="lbl">تغییر</td>${order.map((yy,i)=>{ if(i===order.length-1) return `<td>—</td>`; const now=allRows.filter(r=>Number(r.year)===yy).length, before=allRows.filter(r=>Number(r.year)===order[i+1]).length; return `<td>${deltaHtml(now,before,true)}</td>`; }).join("")}</tr></tbody></table>`;
 }
 
 function monthLabel(key){
@@ -1563,15 +1766,33 @@ function monthLabel(key){
   return `${names[month-1]||""} ${year}`;
 }
 
-function renderBars(el,items,valueKey="warnings",colorFn=null,labelFn=null){
-  if(!items.length){ empty(el); return; }
-  const max=Math.max(1,...items.map(i=>i[valueKey]||0));
+/* میله‌های افقی؛ با opts.click = «ریزش اطلاعات» همان گروه باز می‌شود و
+   با opts.compare = تعداد سال قبل (خط‌چین پشت میله) و درصد تغییر نمایش داده می‌شود. */
+function renderBars(el,items,valueKey="warnings",colorFn=null,labelFn=null,opts){
+  opts=opts||{};
+  if(!items||!items.length){ empty(el); return; }
+  const max=Math.max(1,...items.map(i=>Math.max(Number(i[valueKey]||0), Number(i.prev||0))));
   el.innerHTML=items.map(item=>{
-    const p=(item[valueKey]||0)/max*100;
+    const val=Number(item[valueKey]||0);
+    const p=val/max*100;
+    const pPrev=Math.max(0,Math.min(100,(Number(item.prev||0)/max)*100));
     const col=colorFn?colorFn(item):"#0e7f9a";
     const label=labelFn?labelFn(item):item.name;
-    return `<div class="bar-row"><div class="label" title="${esc(label)}">${esc(label)}</div><div class="track"><div class="fill" style="width:${p}%;background:${col}"></div></div><div class="val">${fmt(item[valueKey]||0)}</div></div>`;
+    const clickable=typeof opts.click==="function";
+    const prevBar=opts.compare?`<div class="fill prev" style="width:${pPrev}%" title="سال قبل: ${fmt(item.prev||0)}"></div>`:"";
+    const delta=opts.compare&&item.prev!==undefined?`<span class="bar-delta">${deltaHtml(val,item.prev,true)}</span>`:"";
+    return `<div class="bar-row${clickable?" clickable":""}" ${clickable?`data-bar="${esc(item.name)}" role="button" tabindex="0" title="ریزش اطلاعات ${esc(label)}"`:""}>
+      <div class="label" title="${esc(label)}">${esc(label)}</div>
+      <div class="track">${prevBar}<div class="fill" style="width:${p}%;background:${col}"></div></div>
+      <div class="val">${fmt(val)}${delta}</div></div>`;
   }).join("");
+  if(typeof opts.click==="function"){
+    $$("[data-bar]",el).forEach(row=>{
+      const fire=()=>opts.click(row.dataset.bar);
+      row.addEventListener("click",fire);
+      row.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); fire(); } });
+    });
+  }
 }
 
 const STAGE_COLORS = {
@@ -1605,6 +1826,29 @@ function renderStatusDonut(el, rows){
 }
 
 /* جزئیات وضعیت: ترکیب سه‌گانهٔ وضعیت + مراحل اقدام کوتاه/میان‌مدت در یک کارت */
+/* کارت ۶M در نمای کلی: اگر سال انتخاب‌شده علت ۶M ثبت‌شده نداشته باشد، جای
+   نمودار خالی، وضعیت و پوشش داده توضیح داده می‌شود (بدون اختراع عدد). */
+function renderM6Overview(rows, items, opts){
+  const el=$("#ov-m6-bars");
+  const note=$("#ov-m6-note");
+  const total=rows.length||1;
+  const unknown=rows.filter(r=>!r.m6 || r.m6==="نامشخص").length;
+  if(items && items.length){
+    renderBars(el, items, "warnings", ()=> "#1e4fd8", null, opts);
+    if(note) note.innerHTML=`${fmt(total-unknown)} از ${fmt(total)} اخطار (${pct((total-unknown)/total)}) علت ۶M ثبت‌شده دارند · ${fmt(unknown)} نامشخص (در نمودار نیامده)`;
+    return;
+  }
+  el.innerHTML=`<div class="ov-empty">برای ${fmt(unknown)} اخطار این بازه، علت ۶M در برگهٔ بررسی ثبت نشده است.
+    <div style="margin-top:8px"><button class="btn sm" id="m6-clear-year">نمایش ۶M در همهٔ سال‌ها</button></div></div>`;
+  if(note) note.innerHTML=`۶M فقط برای اخطارهای دارای برگهٔ بررسی ثبت می‌شود؛ با برداشتن فیلتر سال، ۱۴۰۴ و ۱۴۰۵ دیده می‌شوند.`;
+  const b=$("#m6-clear-year");
+  if(b) b.addEventListener("click",()=>{
+    state.year=""; state.from=""; state.to="";
+    const sel=$("#f-year"); if(sel) sel.value="";
+    refreshMonthSelects(); setTrendMode("year"); render();
+  });
+}
+
 function renderStatusDetail(rows){
   const el=$("#status-detail"), total=$("#status-total");
   if(!el) return;
@@ -1619,6 +1863,8 @@ function renderStatusDetail(rows){
     {name:"عدم دریافت قطعه", value:notReceived, color:"#d92d5c", hint:"منتظر قطعه"}
   ];
   const max=Math.max(1,...items.map(i=>i.value));
+  const ctxYears=compareContext();
+  const diffClosed=ctxYears.curRows.filter(r=>!r.open).length - ctxYears.prevRows.filter(r=>!r.open).length;
   const bars=items.map(i=>`<div class="bar-row" style="cursor:pointer" data-status="${esc(i.name)}">
       <div class="label">${esc(i.name)}<span class="muted tiny"> ${esc(i.hint)}</span></div>
       <div class="track"><div class="fill" style="width:${i.value/max*100}%;background:${i.color}"></div></div>
@@ -1634,10 +1880,19 @@ function renderStatusDetail(rows){
   el.innerHTML=bars+mini("اقدام کوتاه مدت",st,"#d92d5c")+mini("اقدام میان مدت",mt,"#c47f0a");
   $$("[data-status]",el).forEach(row=>row.addEventListener("click",()=>{
     const key=row.dataset.status;
-    if(key==="در حال بررسی"){ state.quickFilter="review"; }
-    else if(key==="عدم دریافت قطعه"){ state.quickFilter="notreceived"; }
-    else { state.quickFilter=""; state.status="closed"; }
-    state.page=1; syncSelects(); render();
+    const base=applyFilters();
+    if(key==="در حال بررسی"){
+      openBreakdown("در حال بررسی","اخطارهایی که برگهٔ بررسی فعال دارند",base.filter(isUnderReview),
+        {apply:()=>{state.quickFilter="review";state.page=1;}});
+      return;
+    }
+    if(key==="عدم دریافت قطعه"){
+      openBreakdown("عدم دریافت قطعه","اخطارهای باز که قطعه دریافت نشده است",base.filter(isNotReceived),
+        {apply:()=>{state.quickFilter="notreceived";state.page=1;}});
+      return;
+    }
+    openBreakdown("خاتمه‌یافته","اخطارهای رسیدگی‌شده",base.filter(r=>!r.open),
+      {apply:()=>{state.quickFilter="";state.status="closed";state.page=1;}});
   }));
 }
 
@@ -1739,7 +1994,7 @@ function renderGroupTable(rows){
       <td class="num">${fmt(i.qty)}</td><td class="num muted">${pct(i.qty/defTotal)}</td>
       <td class="num">${fmt(i.score)}</td><td class="num">${fmt(i.products)}</td>
       <td class="num">${fmt(i.open)}</td><td class="num">${fmt(i.gradeA)}</td></tr>`).join("")}</tbody>`;
-  $$("#group-table tbody tr").forEach(tr=>tr.addEventListener("click",()=>{ state.group=tr.dataset.group; state.family=""; state.product=""; syncSelects(); render(); }));
+  $$("#group-table tbody tr").forEach(tr=>tr.addEventListener("click",()=>goGroup(tr.dataset.group)));
 }
 function renderGroupsTab(rows){
   renderDonut($("#groups-donut"),rows);
@@ -2487,6 +2742,12 @@ function initFilters(){
     setTrendMode(btn.dataset.mode);
     renderTrend($("#trend"),applyFilters());
   }));
+  $$("#bars-compare button").forEach(btn=>btn.addEventListener("click",()=>{
+    state.barsCompare = btn.dataset.barscompare==="on";
+    $$("#bars-compare button").forEach(b=>b.classList.toggle("active", b===btn));
+    syncBarsCompareLegend();
+    render();
+  }));
   $$("#trend-compare button").forEach(btn=>btn.addEventListener("click",()=>{
     state.trendCompare = btn.dataset.compare!=="off";
     $$("#trend-compare button").forEach(b=>b.classList.toggle("active", b===btn));
@@ -2522,11 +2783,23 @@ function render(){
   renderStatusDetail(rows);
   renderActionBars(rows);
   renderTrend($("#trend"),rows);
-  renderBars($("#ov-defect-bars"), groupAgg(rows,"defectGroup").sort((a,b)=>b.warnings-a.warnings).slice(0,8), "warnings", ()=> "#d92d5c");
-  renderBars($("#ov-make-bars"), groupAgg(rows,"make").sort((a,b)=>b.warnings-a.warnings).slice(0,8), "warnings", ()=> "#0b64c8");
-  renderBars($("#ov-m6-bars"), groupAgg(rows.filter(r=>r.m6 && r.m6!=="نامشخص"),"m6").sort((a,b)=>b.warnings-a.warnings).slice(0,7), "warnings", ()=> "#1e4fd8");
-  renderBars($("#family-bars"),groupAgg(rows,"family").sort((a,b)=>b.warnings-a.warnings).slice(0,12),"warnings",i=>color((rows.find(r=>r.family===i.name)||{}).group||"#0e7f9a"),i=>i.name);
-  renderProductBars(rows);
+  const barOpts=kind=>({click:barClick(kind), compare:state.barsCompare});
+  const withPrev=(items,field)=>{
+    if(!state.barsCompare) return items;
+    const {prev}=compareYears();
+    return items.map(i=>Object.assign({},i,{prev: rows.filter(r=>Number(r.year)===prev && (r[field]||"نامشخص")===i.name).length}));
+  };
+  const defectItems=withPrev(groupAgg(rows,"defectGroup").sort((a,b)=>b.warnings-a.warnings).slice(0,8),"defectGroup");
+  const makeItems=withPrev(groupAgg(rows,"make").sort((a,b)=>b.warnings-a.warnings).slice(0,8),"make");
+  const m6Items=withPrev(groupAgg(rows.filter(r=>r.m6 && r.m6!=="نامشخص"),"m6").sort((a,b)=>b.warnings-a.warnings).slice(0,7),"m6");
+  syncBarsCompareLegend();
+  renderBars($("#ov-defect-bars"), defectItems, "warnings", ()=> "#d92d5c", null, barOpts("defect"));
+  renderBars($("#ov-make-bars"), makeItems, "warnings", ()=> "#0b64c8", null, barOpts("make"));
+  renderM6Overview(rows, m6Items, barOpts("m6"));
+  renderBars($("#family-bars"), withPrev(groupAgg(rows,"family").sort((a,b)=>b.warnings-a.warnings).slice(0,12),"family"), "warnings",
+    i=>color((rows.find(r=>r.family===i.name)||{}).group||"#0e7f9a"), i=>i.name, barOpts("family"));
+  renderBars($("#product-bars"), withPrev(groupAgg(rows,"product").sort((a,b)=>b.warnings-a.warnings).slice(0,10),"product"), "warnings",
+    i=>color((rows.find(r=>r.product===i.name)||{}).group||"#0e7f9a"), i=>i.name, barOpts("product"));
   renderGroupTable(rows);
   renderGroupsTab(rows);
   renderFamiliesTab(rows);
@@ -2770,6 +3043,15 @@ async function waitForUploadBuild(fileName){
     }
   }
   toast("ساخت گزارش طول کشید؛ خودکار تازه می‌شود");
+}
+function syncBarsCompareLegend(){
+  const legend=$("#bars-legend");
+  if(!legend) return;
+  if(!state.barsCompare){ legend.innerHTML=""; return; }
+  const {cur,prev}=compareYears();
+  legend.innerHTML=`<span><span class="sw" style="background:#0b64c8"></span>سال ${faDigits(cur)}</span>
+    <span><span class="sw" style="background:#cbd8e6"></span>سال ${faDigits(prev)}</span>
+    <span>درصد تغییر کنار عدد هر ردیف</span>`;
 }
 function showUpdateBanner(text){
   const banner=$("#update-banner"); if(!banner) return;
