@@ -55,7 +55,7 @@ if %RESULT%==0 (
   echo Done. The output folder will open now.
   start "" "%~dp0output"
   echo.
-  echo To fill and save 8D forms inside the dashboard, run serve.bat
+  echo To fill 8D forms and upload fresh data inside the dashboard, run serve.bat
 ) else (
   echo Build failed with code %RESULT%. See output\build.log for details.
 )

@@ -551,6 +551,32 @@ tbody tr:last-child td{border-bottom:0}
 .wm-source{display:flex;gap:9px;align-items:flex-start;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;border-radius:12px;padding:9px 12px;font-size:11.5px;margin-bottom:12px;line-height:1.8}
 .wm-link{background:none;border:0;color:var(--accent);font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer;text-decoration:underline;padding:0}
 @media(max-width:760px){.wm-grid{grid-template-columns:1fr}.wm-stats{grid-template-columns:repeat(2,1fr)}.wm-badges{max-width:100%;justify-content:flex-start}.wm-rows{grid-template-columns:94px 1fr}}
+/* ------------------------------------------------------- بارگذاری داده */
+.up-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:4px}
+.up-item{border:1px solid var(--line);border-radius:14px;padding:11px 13px;background:#fff;display:flex;flex-direction:column;gap:8px}
+.up-item.ok{border-color:#c6f0e6;background:#f7fefb}
+.up-item.missing{border-color:#fbdde3;background:#fff7f9}
+.up-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.up-title{font-size:12.5px;font-weight:800;color:var(--ink);line-height:1.6}
+.up-meta{font-size:10.8px;color:var(--muted);line-height:1.9;word-break:break-all}
+.up-meta b{color:#334155;font-weight:700}
+.up-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.up-actions input[type=file]{display:none}
+.up-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid #c7d2fe;background:#eef2ff;color:#3730a3;border-radius:10px;padding:7px 11px;font-family:inherit;font-size:11.8px;font-weight:700;cursor:pointer;transition:background .15s,transform .12s}
+.up-btn:hover{background:#e0e7ff;transform:translateY(-1px)}
+.up-btn[disabled]{opacity:.55;cursor:not-allowed;transform:none}
+.up-status{font-size:11px;color:var(--muted);min-height:16px}
+.up-status.busy{color:#1d4ed8;font-weight:700}
+.up-status.done{color:#047857;font-weight:700}
+.up-status.fail{color:#b4123e;font-weight:700}
+.up-bar{height:5px;border-radius:99px;background:#e2e8f0;overflow:hidden;display:none}
+.up-bar.show{display:block}
+.up-bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#3b5bdb,#5b7cfa);transition:width .2s}
+.up-steps{margin:0;padding-inline-start:18px;font-size:12px;line-height:2.1;color:#334155}
+.up-steps b{color:var(--ink)}
+.up-note{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:11.6px;line-height:2;color:#334155;margin-bottom:12px}
+.up-note b{color:var(--ink)}
+@media(max-width:760px){.up-grid{grid-template-columns:1fr}}
 footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
 @media(max-width:1200px){.kpi-grid{grid-template-columns:repeat(3,1fr)}.filters{grid-template-columns:repeat(4,1fr)}.grid-3{grid-template-columns:1fr}}
 @media(max-width:760px){
@@ -576,6 +602,7 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
   </div>
   <div class="meta" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:flex-end">
     <div id="meta"></div>
+    <button class="btn" id="open-upload" title="بارگذاری فایل‌های تازهٔ ورودی (اخطار، ListData، گروه‌بندی، برگهٔ بررسی) و ساخت خودکار گزارش" style="background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.28);padding:9px 15px;white-space:nowrap;backdrop-filter:blur(6px);box-shadow:inset 0 1px 0 rgba(255,255,255,.18)">⤒ بارگذاری داده</button>
     <button class="btn" id="refresh-data" title="ساخت دوبارهٔ گزارش از فایل‌های ورودی (داده‌های ذخیره‌شده حفظ می‌شوند)" style="background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.28);padding:9px 15px;white-space:nowrap;backdrop-filter:blur(6px);box-shadow:inset 0 1px 0 rgba(255,255,255,.18)">⟳ به‌روزرسانی</button>
     <span id="auto-refresh-badge" class="tiny" style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:5px 11px;color:#d6e2ff" title="اگر فایل‌های ورودی یا برنامه تغییر کند، گزارش خودکار تازه می‌شود"><span class="dot-live off"></span><span id="auto-refresh-text">به‌روزرسانی خودکار</span></span>
   </div>
@@ -2327,6 +2354,176 @@ function showCsvFallback(csv,url,filename="ekhtar-grouped.csv"){
     catch(e){ $("#csv-text").select(); document.execCommand("copy"); $("#copy-state").textContent="کپی شد ✓"; }
   });
 }
+/* ------------------------------------------------- بارگذاری دادهٔ تازه ----
+   هر فایل ورودی در فهرست زیر جداگانه انتخاب می‌شود؛ فایل همان‌جا روی سرور
+   ذخیره می‌شود (نسخهٔ قبلی پشتیبان می‌ماند) و گزارش خودکار دوباره ساخته
+   می‌شود. هیچ دادهٔ دستی (فرم 8D، اصلاح ایراد، اصلاح گروه‌بندی) پاک نمی‌شود. */
+const UPLOAD_ACCEPT={
+  warnings:".xlsx,.xlsm", listdata:".xlsx,.xlsm", catalog:".xlsx,.xlsm",
+  review:".xlsx,.xlsm", template:".docx", manual:".xlsx,.xlsm"
+};
+const UPLOAD_HINTS={
+  warnings:"فایل «گزارش اخطار کيفي» با شیت «گزارش اخطار کيفي» — خروجی اکسل سامانهٔ اخطارها",
+  listdata:"خروجی ListData راهکاران (عنوان، کد، مشخصه فنی، ماهیت کالا)",
+  catalog:"فایل گروه‌بندی محصولات (کد گروه، محصول، خانواده، گروه محصول نهایی، برنچ)",
+  review:"فایل C_Plus با شیت‌های «اخطار» (برگهٔ بررسی) و «کلیم»",
+  template:"قالب رسمی QA-DA-02-C با پسوند docx (برای ساخت فرم‌های 8D)",
+  manual:"اختیاری: «فرم ثبت محصولات برگشتی» برای یادگیری الگوی متن ایراد"
+};
+let UPLOAD_STATE={inputs:[],busy:false};
+function upItemHtml(item){
+  const hasFile=item.exists;
+  const when=item.uploaded?`بارگذاری‌شده در داشبورد`:`فایل اصلی پروژه`;
+  return `<div class="up-item ${hasFile?"ok":"missing"}" data-key="${item.key}">
+    <div class="up-head">
+      <div class="up-title">${esc(item.label)}${item.key==="manual"?' <span class="wm-tag">اختیاری</span>':""}</div>
+      <span class="badge ${hasFile?"green":"red"}">${hasFile?"موجود":"پیدا نشد"}</span>
+    </div>
+    <div class="up-meta">${hasFile
+      ? `${esc(item.name)}<br><b>${fmt(item.sizeMB||0)} مگابایت</b> · آخرین تغییر ${esc(faDigits(item.modified||"—"))} · ${when}${item.versions?` · ${fmt(item.versions)} نسخهٔ ذخیره‌شده`:""}`
+      : `فایل پیش‌فرض <b>${esc(item.defaultName)}</b> در پروژه نیست؛ نسخهٔ تازه را بارگذاری کنید.`}</div>
+    <div class="up-meta">${esc(UPLOAD_HINTS[item.key]||"")}</div>
+    <div class="up-actions">
+      <input type="file" id="up-file-${item.key}" accept="${UPLOAD_ACCEPT[item.key]||""}">
+      <button class="up-btn" data-pick="${item.key}" ${UPLOAD_STATE.busy?"disabled":""}>انتخاب و بارگذاری فایل</button>
+      <span class="up-status" id="up-status-${item.key}"></span>
+    </div>
+    <div class="up-bar" id="up-bar-${item.key}"><i></i></div>
+  </div>`;
+}
+function renderUploadSheet(){
+  const body=$("#modal-body"); if(!body) return;
+  const items=UPLOAD_STATE.inputs||[];
+  $("#modal-title").textContent="به‌روزرسانی و بارگذاری دادهٔ تازه";
+  body.innerHTML=`
+    <div class="up-note">
+      <b>دادهٔ تازه را جای فایل‌های قبلی بگذارید:</b> برای هر ردیف، فایل تازه را انتخاب کنید؛ همان لحظه به‌صورت یک نسخهٔ زمان‌دار
+      در پوشهٔ <b>data/inputs</b> ذخیره می‌شود، نسخهٔ قبلی در <b>data/backups/inputs</b> می‌ماند و ساخت گزارش خودکار شروع می‌شود.
+      ${location.protocol==="file:"?'<br><b>الان در حالت فایل باز است؛</b> برای بارگذاری باید داشبورد را با <b>python serve.py</b> باز کنید.':""}
+      <br>در پایان، فهرست اخطارها و همهٔ نمودارها با دادهٔ جدید ساخته می‌شوند؛ <b>فرم‌های 8D، اصلاح ایرادها و اصلاح گروه‌بندی پاک نمی‌شوند.</b>
+    </div>
+    <div class="up-grid">${items.map(upItemHtml).join("")}</div>
+    <div class="up-note" style="margin:12px 0 0">
+      <b>چه فایل‌هایی لازم است؟</b>
+      <ol class="up-steps" style="margin:6px 0 0">
+        <li><b>گزارش اخطارهای کیفی</b> — هر بار دادهٔ جدید سامانه آمد، همین را جایگزین کنید.</li>
+        <li><b>برگه‌های بررسی مشتری (C_Plus)</b> — با آن، «آنالیز علت ایراد»، «قطعه در تحلیل» و اقدام اصلاحی تازه می‌شود.</li>
+        <li><b>ListData و گروه‌بندی محصولات</b> — فقط وقتی کاتالوگ راهکاران یا گروه‌بندی محصولات تغییر کرده است.</li>
+        <li><b>فرم دستی برگشتی</b> (اختیاری) — اگر الگوی متن ایراد عوض شده، برای یادگیری دوباره.</li>
+      </ol>
+    </div>`;
+  items.forEach(item=>{
+    const pick=body.querySelector(`[data-pick="${item.key}"]`);
+    const input=$(`#up-file-${item.key}`);
+    if(!pick||!input) return;
+    pick.addEventListener("click",()=>{
+      if(location.protocol==="file:"){ toast("برای بارگذاری فایل، داشبورد را با python serve.py باز کنید"); return; }
+      input.click();
+    });
+    input.addEventListener("change",()=>{ if(input.files&&input.files[0]) uploadInput(item.key,input.files[0]); });
+  });
+  const foot=$("#modal-foot");
+  if(foot) foot.innerHTML=`<div class="muted tiny">نسخه‌های قبلی هر فایل در data/backups/inputs نگه داشته می‌شود</div>
+    <div style="display:flex;gap:8px"><button class="btn primary" id="up-rebuild">⟳ ساخت دوبارهٔ گزارش با فایل‌های فعلی</button>
+    <button class="btn" id="up-close">بستن</button></div>`;
+  const close=$("#up-close"); if(close) close.addEventListener("click",()=>$("#modal").classList.add("hidden"));
+  const rebuild=$("#up-rebuild"); if(rebuild) rebuild.addEventListener("click",()=>{ $("#modal").classList.add("hidden"); refreshDashboard(); });
+  $("#modal").classList.remove("hidden");
+}
+async function openUploadSheet(){
+  $("#modal-title").textContent="به‌روزرسانی و بارگذاری دادهٔ تازه";
+  $("#modal-body").innerHTML='<div class="wm-empty">در حال خواندن وضعیت فایل‌های ورودی…</div>';
+  $("#modal-foot").innerHTML="";
+  $("#modal").classList.remove("hidden");
+  try{
+    const response=await fetch("/api/inputs",{cache:"no-store"});
+    const payload=await response.json();
+    UPLOAD_STATE.inputs=payload.inputs||[];
+  }catch(error){
+    UPLOAD_STATE.inputs=[];
+  }
+  if(!UPLOAD_STATE.inputs.length){
+    $("#modal-body").innerHTML='<div class="wm-empty">وضعیت فایل‌های ورودی خوانده نشد. داشبورد را با <b>python serve.py</b> باز کنید.</div>';
+    return;
+  }
+  renderUploadSheet();
+}
+function uploadInput(key,file){
+  if(UPLOAD_STATE.busy) return;
+  UPLOAD_STATE.busy=true;
+  const status=$(`#up-status-${key}`), bar=$(`#up-bar-${key}`), fill=bar&&bar.querySelector("i");
+  const fileName=file.name;
+  const sizeMB=file.size/(1024*1024);
+  if(sizeMB>60){
+    if(status){ status.className="up-status fail"; status.textContent=`حجم فایل ${fmt(sizeMB)} مگابایت است؛ حداکثر ۶۰ مگابایت.`; }
+    UPLOAD_STATE.busy=false; return;
+  }
+  if(status){ status.className="up-status busy"; status.textContent="در حال ارسال فایل…"; }
+  if(bar){ bar.classList.add("show"); }
+  $$(".up-btn").forEach(b=>b.disabled=true);
+  const xhr=new XMLHttpRequest();
+  xhr.open("POST","/api/inputs/upload");
+  xhr.setRequestHeader("X-Input-Key",key);
+  xhr.setRequestHeader("X-File-Name",encodeURIComponent(fileName));
+  xhr.setRequestHeader("Content-Type","application/octet-stream");
+  xhr.upload.onprogress=e=>{
+    if(!e.lengthComputable||!fill||!status) return;
+    const percent=Math.round(e.loaded/e.total*100);
+    fill.style.width=percent+"%";
+    status.textContent=`در حال ارسال فایل… ${faDigits(percent)}٪`;
+  };
+  xhr.onload=()=>{
+    UPLOAD_STATE.busy=false;
+    $$(".up-btn").forEach(b=>b.disabled=false);
+    let payload={};
+    try{ payload=JSON.parse(xhr.responseText||"{}"); }catch(error){ payload={}; }
+    if(xhr.status>=200&&xhr.status<300&&payload.ok){
+      if(status){ status.className="up-status done"; status.textContent=`${fileName} ذخیره شد ✓`; }
+      if(fill){ fill.style.width="100%"; }
+      if(payload.inputs) UPLOAD_STATE.inputs=payload.inputs;
+      toast(`فایل ${fileName} بارگذاری شد — ساخت گزارش شروع شد`);
+      waitForUploadBuild(fileName);
+    }else{
+      if(status){ status.className="up-status fail"; status.textContent=(payload.error||"بارگذاری ناموفق بود"); }
+      if(bar){ bar.classList.remove("show"); }
+      toast(payload.error||"بارگذاری فایل ناموفق بود");
+    }
+  };
+  xhr.onerror=()=>{
+    UPLOAD_STATE.busy=false;
+    $$(".up-btn").forEach(b=>b.disabled=false);
+    if(status){ status.className="up-status fail"; status.textContent="ارتباط با سرور قطع شد"; }
+    toast("ارتباط با سرور قطع شد — دوباره تلاش کنید");
+  };
+  xhr.send(file);
+}
+async function waitForUploadBuild(fileName){
+  const status=$("#modal-body .up-status.busy")||null;
+  const banner=$("#update-banner-text");
+  for(let i=0;i<900;i++){
+    await new Promise(resolve=>setTimeout(resolve,1500));
+    let snapshot=null;
+    try{
+      const response=await fetch("/api/status",{cache:"no-store"});
+      snapshot=await response.json();
+    }catch(error){ continue; }
+    setAutoBadge(snapshot);
+    if(banner) banner.textContent=`در حال ساخت گزارش با فایل‌های تازه… ${Math.floor(snapshot.elapsed||0)} ثانیه`;
+    if(snapshot.state==="done"){
+      toast("گزارش با دادهٔ تازه ساخته شد ✓");
+      if(snapshot.buildId) PAGE_BUILD=snapshot.buildId;
+      setTimeout(()=>reloadNewBuild(),900);
+      return;
+    }
+    if(snapshot.state==="error"){
+      toast("ساخت گزارش ناموفق بود: "+(snapshot.error||""));
+      if(status){ status.className="up-status fail"; status.textContent="فایل ذخیره شد اما ساخت گزارش خطا داد"; }
+      showUpdateBanner("فایل ذخیره شد؛ ساخت گزارش خطا داد — شرح در output/rebuild.log");
+      return;
+    }
+  }
+  toast("ساخت گزارش طول کشید؛ خودکار تازه می‌شود");
+}
 function showUpdateBanner(text){
   const banner=$("#update-banner"); if(!banner) return;
   const label=$("#update-banner-text"); if(label && text) label.textContent=text;
@@ -2409,6 +2606,8 @@ async function refreshDashboard(){
   }
 }
 $("#refresh-data").addEventListener("click", refreshDashboard);
+const openUploadBtn=$("#open-upload");
+if(openUploadBtn) openUploadBtn.addEventListener("click", openUploadSheet);
 const applyBanner=$("#update-banner-apply");
 if(applyBanner) applyBanner.addEventListener("click", reloadNewBuild);
 const laterBanner=$("#update-banner-later");

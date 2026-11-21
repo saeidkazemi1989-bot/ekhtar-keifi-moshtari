@@ -89,8 +89,23 @@ def check_dependencies(modules: dict[str, str] | None = None) -> list[str]:
     return missing
 
 
+def _effective_inputs() -> dict[str, "Path"]:
+    """مسیر مؤثر ورودی‌ها: نسخهٔ بارگذاری‌شده در داشبورد، وگرنه فایل ریشه."""
+    try:
+        from src import storage
+    except Exception:  # pragma: no cover - فقط اگر پوشهٔ src ناقص باشد
+        return {}
+    return storage.input_paths()
+
+
 def check_inputs() -> list[Path]:
-    return [path for path in (WARNINGS_FILE, LISTDATA_FILE, CATALOG_FILE) if not path.exists()]
+    effective = _effective_inputs()
+    paths = (
+        effective.get("warnings", WARNINGS_FILE),
+        effective.get("listdata", LISTDATA_FILE),
+        effective.get("catalog", CATALOG_FILE),
+    )
+    return [path for path in paths if not path.exists()]
 
 
 def print_environment() -> None:
@@ -98,7 +113,15 @@ def print_environment() -> None:
     log(f"پوشهٔ پروژه: {ROOT}")
     log("")
     log("فایل‌های ورودی:")
-    for path in (WARNINGS_FILE, LISTDATA_FILE, CATALOG_FILE, REVIEW_FILE, EIGHT_D_TEMPLATE):
+    effective = _effective_inputs()
+    for key, path in (
+        ("warnings", WARNINGS_FILE),
+        ("listdata", LISTDATA_FILE),
+        ("catalog", CATALOG_FILE),
+        ("review", REVIEW_FILE),
+        ("template", EIGHT_D_TEMPLATE),
+    ):
+        path = effective.get(key, path)
         if path.exists():
             size = path.stat().st_size / 1024
             log(f"  [موجود]  {path.name}  ({size:,.0f} کیلوبایت)")
@@ -177,12 +200,11 @@ def main() -> int:
     # ایمپورت‌ها بعد از بررسی انجام می‌شوند تا پیام خطا خوانا باشد
     import pandas as pd
 
-    from src import eight_d_store
+    from src import eight_d_store, storage
     from src.aggregate import tech_table
     from src.catalog import add_branch, load_catalog
     from src import defect_learn
     from src.defects import add_defect_fields, apply_defect_overrides, load_defect_overrides, make_defect_template
-    from src import storage
     from src.mapper import ProductMapper, enrich_warnings, product_table
     from src.report_8d import build_8d_document, build_official_form
     from src.report_excel import build_excel
@@ -194,6 +216,20 @@ def main() -> int:
     from src.review import attach_review, eight_d_rows, grouping_checks, load_claims, load_review
 
     storage.ensure_data_dir()
+
+    # فایل‌های ورودی: اگر نسخهٔ تازه‌ای در داشبورد بارگذاری شده باشد، همان مبنای
+    # ساخت است؛ در غیر این صورت فایل اصلی کنار build_report.py استفاده می‌شود.
+    global WARNINGS_FILE, LISTDATA_FILE, CATALOG_FILE, REVIEW_FILE, EIGHT_D_TEMPLATE, OVERRIDES_FILE, DEFECT_OVERRIDES_FILE
+    effective = storage.input_paths()
+    WARNINGS_FILE = effective["warnings"]
+    LISTDATA_FILE = effective["listdata"]
+    CATALOG_FILE = effective["catalog"]
+    REVIEW_FILE = effective["review"]
+    EIGHT_D_TEMPLATE = effective["template"]
+    manual_path = effective["manual"]
+    if WARNINGS_FILE.parent != ROOT or LISTDATA_FILE.parent != ROOT:
+        log("   مبنا: فایل‌های بارگذاری‌شده در داشبورد (پوشهٔ data/inputs)")
+
     if "--defect-template" in sys.argv:
         path = make_defect_template(storage.DATA_DIR / DEFECT_OVERRIDES_FILE.name)
         log(f"فایل نمونه ساخته شد: {path.relative_to(ROOT)}")
@@ -266,7 +302,7 @@ def main() -> int:
             if not manual_file.is_absolute():
                 manual_file = ROOT / manual_file
         else:
-            manual_file = defect_learn.find_manual_file(storage.DATA_DIR, ROOT)
+            manual_file = manual_path if manual_path.exists() else None
         if manual_file and manual_file.exists():
             library_path = storage.DATA_DIR / defect_learn.LIBRARY_NAME
             stale = (
@@ -341,6 +377,14 @@ def main() -> int:
         "catalog": CATALOG_FILE.name,
         "review": REVIEW_FILE.name,
     }
+    # در گزارش، نام فایل اصلی نوشته می‌شود (نه نام نسخهٔ بارگذاری‌شدهٔ data/inputs)
+    default_names = {key: storage.INPUT_FILES[key][0] for key in sources}
+    sources = {key: default_names[key] for key in sources}
+    uploaded_sources = [
+        storage.INPUT_FILES[key][1]
+        for key in ("warnings", "listdata", "catalog", "review")
+        if effective[key].parent != ROOT
+    ]
     if learned and manual_file:
         sources["manual_pattern"] = manual_file.name
 

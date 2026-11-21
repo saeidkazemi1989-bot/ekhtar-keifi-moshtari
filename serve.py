@@ -41,6 +41,8 @@ from src import eight_d_store, storage  # noqa: E402
 STORE = storage.forms_path()
 
 MAX_BODY = 200_000
+MAX_UPLOAD = storage.INPUT_MAX_MB * 1024 * 1024
+UPLOAD_CHUNK = 1024 * 1024
 BUILD_LOG = OUTPUT / "rebuild.log"
 BUILD_TIMEOUT = 900
 BUILD_LOCK = threading.Lock()
@@ -88,6 +90,10 @@ def _build_snapshot() -> dict:
     snapshot["buildId"] = _build_id()
     snapshot["watching"] = WATCH_ENABLED
     snapshot["dataFile"] = str(STORE)
+    try:
+        snapshot["inputs"] = storage.inputs_status()
+    except Exception:  # noqa: BLE001 - وضعیت ورودی‌ها نباید داشبورد را بشکند
+        snapshot["inputs"] = []
     return snapshot
 
 
@@ -240,6 +246,9 @@ class Handler(SimpleHTTPRequestHandler):
         if path in {"/api/rebuild", "/api/rebuild/", "/api/rebuild/status", "/api/status"}:
             self._json(_build_snapshot())
             return
+        if path in {"/api/inputs", "/api/inputs/"}:
+            self._json({"ok": True, "inputs": storage.inputs_status()})
+            return
         if path in {"/api/8d", "/api/8d/"}:
             entries = eight_d_store.load(STORE)
             serials = list(entries.keys())
@@ -281,6 +290,9 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         path = unquote(urlparse(self.path).path)
+        if path in {"/api/inputs", "/api/inputs/upload", "/api/inputs/"}:
+            self._receive_input()
+            return
         if path in {"/api/rebuild", "/api/rebuild/"}:
             started = _start_build(trigger="button")
             payload = _build_snapshot()
@@ -324,6 +336,91 @@ class Handler(SimpleHTTPRequestHandler):
             }
         )
 
+    def _receive_input(self) -> None:
+        """دریافت فایل ورودی خام (بدنهٔ خام فایل، نه فرم) و ذخیرهٔ نسخهٔ تازه.
+
+        نام فایل در هدر ``X-File-Name`` (UTF-8، percent-encoded) و کلید ورودی در
+        هدر ``X-Input-Key`` فرستاده می‌شود؛ کلید می‌تواند خالی باشد و از نام فایل
+        تشخیص داده شود.
+        """
+        from urllib.parse import unquote as _unquote
+
+        key = (_unquote(self.headers.get("X-Input-Key") or "")).strip()
+        filename = _unquote(self.headers.get("X-File-Name") or "").strip()
+        if not filename:
+            self._json({"ok": False, "error": "نام فایل در هدر X-File-Name لازم است"}, 400)
+            return
+        if not key:
+            key = storage.input_key_of_name(filename) or ""
+        if key not in storage.INPUT_FILES:
+            self._json(
+                {
+                    "ok": False,
+                    "error": "نوع فایل ورودی مشخص نیست؛ یکی از فایل‌های اخطار، ListData، گروه‌بندی، C_Plus، قالب 8D یا فرم برگشتی را انتخاب کنید",
+                },
+                400,
+            )
+            return
+        length = int(self.headers.get("Content-Length") or 0)
+        if length <= 0:
+            self._json({"ok": False, "error": "فایل خالی است"}, 400)
+            return
+        if length > MAX_UPLOAD:
+            self._json(
+                {"ok": False, "error": f"حجم فایل بیشتر از {storage.INPUT_MAX_MB} مگابایت است"},
+                413,
+            )
+            return
+        chunks: list[bytes] = []
+        remaining = length
+        try:
+            while remaining > 0:
+                chunk = self.rfile.read(min(UPLOAD_CHUNK, remaining))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                remaining -= len(chunk)
+            payload = b"".join(chunks)
+            if len(payload) != length:
+                self._json({"ok": False, "error": "دریافت فایل کامل نشد؛ دوباره تلاش کنید"}, 400)
+                return
+            # اعتبارسنجی سبک: فایل اکسل/ورد واقعی باشد
+            if storage.INPUT_EXTENSIONS[key][0] == ".docx" and not payload.startswith(b"PK"):
+                self._json({"ok": False, "error": "فایل ورد معتبر نیست (docx لازم است)"}, 400)
+                return
+            if payload[:4] not in {b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"} and key != "template":
+                self._json(
+                    {"ok": False, "error": "فایل اکسل معتبر نیست؛ فایل xlsx را انتخاب کنید (نه xls قدیمی یا CSV)"},
+                    400,
+                )
+                return
+        except Exception:  # noqa: BLE001
+            self._json({"ok": False, "error": "خواندن فایل ناموفق بود"}, 400)
+            return
+
+        try:
+            saved = storage.save_input(key, filename, payload)
+        except ValueError as error:
+            self._json({"ok": False, "error": str(error)}, 400)
+            return
+        except Exception as error:  # noqa: BLE001
+            self._json({"ok": False, "error": f"ذخیرهٔ فایل ناموفق بود: {error}"}, 500)
+            return
+
+        # پس از بارگذاری، گزارش با دادهٔ تازه خودکار ساخته می‌شود
+        started = _start_build(trigger="upload")
+        state = _build_snapshot()
+        self._json(
+            {
+                "ok": True,
+                "input": saved,
+                "inputs": state.get("inputs", []),
+                "buildStarted": started,
+                "state": state.get("state"),
+                "buildId": state.get("buildId"),
+            }
+        )
+
     def do_DELETE(self) -> None:  # noqa: N802
         path = unquote(urlparse(self.path).path)
         if not path.startswith("/api/8d/"):
@@ -360,6 +457,8 @@ def main() -> int:
     print(f"  ذخیرهٔ فرم‌ها:    {STORE}")
     print(f"  پوشهٔ داده:       {storage.DATA_DIR}")
     print("  به‌روزرسانی:      خودکار پس از تغییر فایل‌ها" + ("" if WATCH_ENABLED else " (خاموش)"))
+    print("  دادهٔ تازه:        دکمهٔ «⤒ بارگذاری داده» در نوار بالای داشبورد")
+    print(f"  ذخیرهٔ ورودی‌ها:   {storage.DATA_DIR / storage.INPUT_DIR_NAME}")
     print("  برای توقف:       Ctrl+C")
     print("=" * 60)
     stop_watch = threading.Event()
