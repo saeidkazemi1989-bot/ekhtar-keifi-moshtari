@@ -265,12 +265,12 @@ TEMPLATE = r"""<!doctype html>
 <title>داشبورد دسته‌بندی اخطارهای کیفی</title>
 <style>
 :root{
-  --bg:#f5f7fb; --card:#ffffff; --ink:#0d1726; --muted:#6a7890; --line:#e7ecf4;
-  --accent:#3b5bdb; --accent2:#0f9f8f; --accent-soft:#eef2ff;
-  --teal:#0f766e; --teal2:#14b8a6; --blue:#2563eb; --violet:#7c3aed; --amber:#d97706;
-  --rose:#e11d48; --cyan:#0891b2; --lime:#65a30d; --slate:#64748b;
-  --shadow:0 1px 2px rgba(13,23,38,.04),0 20px 36px -30px rgba(13,23,38,.5);
-  --shadow-sm:0 1px 2px rgba(13,23,38,.06);
+  --bg:#eef4fb; --card:#ffffff; --ink:#0b1b2b; --muted:#64748b; --line:#dbe7f3;
+  --accent:#0b64c8; --accent2:#0e9fd8; --accent-soft:#e8f3ff;
+  --teal:#0e7f9a; --teal2:#12b3d6; --blue:#0b64c8; --violet:#1e4fd8; --amber:#c47f0a;
+  --rose:#d92d5c; --cyan:#0891b2; --lime:#4d7c0f; --slate:#5b7288;
+  --shadow:0 1px 2px rgba(12,42,72,.05),0 12px 26px -24px rgba(12,42,72,.55);
+  --shadow-sm:0 1px 2px rgba(12,42,72,.06);
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
@@ -291,85 +291,85 @@ a{color:inherit}
     radial-gradient(760px 280px at 92% -70%, rgba(91,124,250,.5) 0%, rgba(91,124,250,0) 66%),
     radial-gradient(620px 250px at 4% 150%, rgba(15,159,143,.32) 0%, rgba(15,159,143,0) 62%),
     linear-gradient(118deg,#0a1120 0%,#101d3a 52%,#0c2b34 100%);
-  color:#fff; padding:21px 30px; display:flex; gap:20px; align-items:center; justify-content:space-between;
+  color:#fff; padding:15px 24px; display:flex; gap:20px; align-items:center; justify-content:space-between;
   flex-wrap:wrap; border-bottom:1px solid rgba(255,255,255,.07);
 }
-.topbar:before{content:"";position:absolute;inset-inline:0;top:0;height:3px;background:linear-gradient(90deg,#3b5bdb 0%,#5b7cfa 28%,#0f9f8f 62%,#7c3aed 100%)}
+.topbar:before{content:"";position:absolute;inset-inline:0;top:0;height:3px;background:linear-gradient(90deg,#0b64c8 0%,#1487e0 28%,#0f9f8f 62%,#7c3aed 100%)}
 .topbar .dot-live{width:8px;height:8px;border-radius:50%;background:#34d399;box-shadow:0 0 0 3px rgba(52,211,153,.18);display:inline-block}
 .topbar .dot-live.off{background:#8b9bb4;box-shadow:0 0 0 3px rgba(139,155,180,.18)}
 .brand{display:flex; gap:14px; align-items:center}
 .logo{
-  width:52px;height:52px;border-radius:16px;
+  width:42px;height:42px;border-radius:12px;
   background:linear-gradient(150deg,rgba(91,124,250,.9) 0%,rgba(59,91,219,.85) 45%,rgba(15,159,143,.85) 100%);
-  display:grid;place-items:center;font-size:22px;font-weight:800;color:#fff;
+  display:grid;place-items:center;font-size:18px;font-weight:800;color:#fff;
   border:1px solid rgba(255,255,255,.22);
   box-shadow:0 18px 30px -18px rgba(59,91,219,1), inset 0 1px 0 rgba(255,255,255,.35);
 }
-.brand h1{font-size:21px;margin:0 0 3px;font-weight:800;letter-spacing:-.4px;color:#fff}
-.brand p{margin:0;color:#a9bce0;font-size:12.5px}
-.meta{font-size:12px;color:#b9c8e6;text-align:left;line-height:1.9}
+.brand h1{font-size:18px;margin:0 0 2px;font-weight:800;letter-spacing:-.3px;color:#fff}
+.brand p{margin:0;color:#9fb5d6;font-size:11.5px}
+.meta{font-size:11.5px;color:#a9bcdb;text-align:left;line-height:1.8}
 .meta b{color:#fff;font-weight:700}
 .tabs{
   position:sticky; top:0; z-index:30; background:rgba(255,255,255,.86); backdrop-filter:saturate(140%) blur(14px);
-  border-bottom:1px solid var(--line); display:flex; gap:5px; padding:10px 24px; overflow-x:auto;
-  box-shadow:0 6px 20px -18px rgba(16,24,40,.55);
+  border-bottom:1px solid var(--line); display:flex; gap:4px; padding:7px 18px; overflow-x:auto;
+  box-shadow:0 4px 14px -14px rgba(16,24,40,.5);
 }
 .tab{
-  border:0;background:transparent;padding:9px 15px;border-radius:999px;font-family:inherit;font-size:12.8px;
+  border:0;background:transparent;padding:7px 13px;border-radius:8px;font-family:inherit;font-size:12.6px;
   color:var(--muted);cursor:pointer;white-space:nowrap;font-weight:700;transition:background .15s,color .15s,box-shadow .15s;
 }
-.tab:hover{background:#eef2f7;color:var(--ink)}
+.tab:hover{background:#eaf1f9;color:var(--ink)}
 .tab.active{
-  background:linear-gradient(135deg,#3b5bdb,#4f6ef0 55%,#0f9f8f);color:#fff;
-  box-shadow:0 12px 22px -16px rgba(59,91,219,.95), inset 0 1px 0 rgba(255,255,255,.25);
+  background:linear-gradient(135deg,#0b64c8,#1487e0);color:#fff;
+  box-shadow:0 8px 18px -14px rgba(11,100,200,.95), inset 0 1px 0 rgba(255,255,255,.22);
 }
 .filters{
-  padding:14px 24px; background:rgba(255,255,255,.78); backdrop-filter:blur(8px); border-bottom:1px solid var(--line);
-  display:grid; grid-template-columns:repeat(7,minmax(120px,1fr)); gap:10px; align-items:end;
+  padding:10px 18px; background:#f8fbff; border-bottom:1px solid var(--line);
+  display:grid; grid-template-columns:repeat(7,minmax(110px,1fr)); gap:8px; align-items:end;
 }
-.field label{display:block;font-size:10.8px;color:var(--muted);margin-bottom:5px;font-weight:700;letter-spacing:.1px}
+.field label{display:block;font-size:10.4px;color:var(--muted);margin-bottom:3px;font-weight:700;letter-spacing:.1px}
 .field select,.field input{
-  width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:11px;background:#f7f9fc;
-  font-family:inherit;font-size:12.5px;color:var(--ink);outline:none;transition:border-color .15s,box-shadow .15s,background .15s;
+  width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:#fff;
+  font-family:inherit;font-size:12px;color:var(--ink);outline:none;transition:border-color .15s,box-shadow .15s,background .15s;
 }
-.field select:focus,.field input:focus{border-color:#5eead4;background:#fff;box-shadow:0 0 0 4px rgba(20,184,166,.13)}
+.field select:focus,.field input:focus{border-color:#7fb6ea;background:#fff;box-shadow:0 0 0 3px rgba(11,100,200,.1)}
 .filter-actions{display:flex;gap:6px}
 .btn{
-  border:1px solid var(--line);background:#fff;border-radius:11px;padding:9px 13px;font-family:inherit;
-  font-size:12.5px;cursor:pointer;color:var(--ink);font-weight:700;white-space:nowrap;
+  border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 11px;font-family:inherit;
+  font-size:12px;cursor:pointer;color:var(--ink);font-weight:700;white-space:nowrap;
   box-shadow:var(--shadow-sm);transition:transform .12s,box-shadow .15s,background .15s;
 }
-.btn:hover{background:#f8fafc;transform:translateY(-1px);box-shadow:0 8px 18px -14px rgba(16,24,40,.6)}
-.btn.primary{background:linear-gradient(135deg,#3b5bdb,#4f6ef0);border-color:#3b5bdb;color:#fff}
-.btn.primary:hover{background:linear-gradient(135deg,#324fbe,#4664de)}
+.btn:hover{background:#f5f9ff;transform:translateY(-1px);box-shadow:0 6px 14px -12px rgba(16,24,40,.55)}
+.btn.primary{background:linear-gradient(135deg,#0b64c8,#1487e0);border-color:#0b64c8;color:#fff}
+.btn.primary:hover{background:linear-gradient(135deg,#0a55ac,#0f7ac9)}
 .btn.ghost{background:transparent}
-main{padding:20px 22px 40px;max-width:1560px;margin:0 auto}
+main{padding:14px 18px 34px;max-width:1760px;margin:0 auto}
 .tab-panel{display:none}
 .tab-panel.active{display:block;animation:fade .18s ease}
 @keyframes fade{from{opacity:.4;transform:translateY(3px)}to{opacity:1;transform:none}}
-.kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:16px}
+.kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:12px}
 .kpi{
-  background:linear-gradient(180deg,#fff 0%,#fbfcfe 100%);border:1px solid var(--line);border-radius:18px;
-  padding:15px 17px 14px;box-shadow:var(--shadow);position:relative;overflow:hidden;transition:transform .15s,box-shadow .2s;
+  background:#fff;border:1px solid var(--line);border-radius:10px;
+  padding:12px 14px 11px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden;transition:transform .15s,box-shadow .2s;
 }
 .kpi:hover{transform:translateY(-2px);box-shadow:0 1px 2px rgba(16,24,40,.04),0 18px 34px -22px rgba(16,24,40,.45)}
 .kpi[data-kpi]{cursor:pointer}
 .kpi[data-kpi]:after{content:"›";position:absolute;inset-inline-end:12px;top:10px;color:#c9d4e8;font-size:16px;font-weight:700;opacity:0;transition:opacity .15s}
 .kpi[data-kpi]:hover:after{opacity:1}
 .kpi[data-kpi]:focus-visible{outline:2px solid #7c93ff;outline-offset:2px}
-.kpi:before{content:"";position:absolute;inset-inline-start:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,#7c93ff,#3b5bdb)}
-.kpi.blue:before{background:linear-gradient(180deg,#60a5fa,#2563eb)} .kpi.violet:before{background:linear-gradient(180deg,#a78bfa,#7c3aed)}
-.kpi.amber:before{background:linear-gradient(180deg,#fbbf24,#d97706)} .kpi.rose:before{background:linear-gradient(180deg,#fb7185,#e11d48)} .kpi.slate:before{background:linear-gradient(180deg,#94a3b8,#64748b)}
-.kpi .label{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.15px}
-.kpi .value{font-size:25px;font-weight:800;letter-spacing:-.6px;margin-top:3px;font-variant-numeric:tabular-nums}
-.kpi .sub{font-size:10.8px;color:var(--muted);margin-top:2px}
+.kpi:before{content:"";position:absolute;inset-inline:0;top:0;height:3px;background:linear-gradient(90deg,#0b64c8,#1487e0)}
+.kpi.blue:before{background:linear-gradient(90deg,#38bdf8,#0284c7)} .kpi.violet:before{background:linear-gradient(90deg,#6d8cf5,#1e4fd8)}
+.kpi.amber:before{background:linear-gradient(90deg,#fbbf24,#c47f0a)} .kpi.rose:before{background:linear-gradient(90deg,#fb7185,#d92d5c)} .kpi.slate:before{background:linear-gradient(90deg,#94a3b8,#5b7288)}
+.kpi .label{font-size:10.8px;color:var(--muted);font-weight:700;letter-spacing:.15px}
+.kpi .value{font-size:21px;font-weight:800;letter-spacing:-.4px;margin-top:2px;font-variant-numeric:tabular-nums}
+.kpi .sub{font-size:10.2px;color:var(--muted);margin-top:1px}
 .cov-card{
-  background:linear-gradient(180deg,#fff,#fbfcff);border:1px solid var(--line);border-radius:18px;
-  box-shadow:var(--shadow);margin-bottom:14px;overflow:hidden;
+  background:#fff;border:1px solid var(--line);border-radius:10px;
+  box-shadow:var(--shadow-sm);margin-bottom:12px;overflow:hidden;
 }
 .cov-strip{display:grid;grid-template-columns:repeat(5,1fr)}
 .cov-item{
-  padding:13px 18px;min-width:0;cursor:pointer;transition:background .15s,transform .12s;
+  padding:10px 14px;min-width:0;cursor:pointer;transition:background .15s;
   border-inline-start:1px solid var(--line);position:relative;
 }
 .cov-item:first-child{border-inline-start:0}
@@ -378,7 +378,7 @@ main{padding:20px 22px 40px;max-width:1560px;margin:0 auto}
 .cov-item:after{content:"›";position:absolute;inset-inline-end:12px;top:50%;transform:translateY(-50%);color:#c6d0e2;font-size:16px;font-weight:700;opacity:0;transition:opacity .15s}
 .cov-item:hover:after{opacity:1}
 .cov-item .k{font-size:10.8px;color:var(--muted);font-weight:700;display:flex;align-items:center;gap:6px}
-.cov-item .v{font-size:22px;font-weight:800;letter-spacing:-.6px;margin-top:2px;font-variant-numeric:tabular-nums;transition:color .15s}
+.cov-item .v{font-size:18px;font-weight:800;letter-spacing:-.3px;margin-top:1px;font-variant-numeric:tabular-nums;transition:color .15s}
 .cov-item .s{font-size:10.4px;color:var(--muted)}
 .cov-item .cdot{width:7px;height:7px;border-radius:50%;flex:none}
 .cov-note{border-top:1px solid var(--line);padding:8px 18px;font-size:10.8px;color:var(--muted);background:#fbfcff;line-height:1.9}
@@ -402,54 +402,93 @@ main{padding:20px 22px 40px;max-width:1560px;margin:0 auto}
 .drill-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
 .drill-card{border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:#fff;min-width:0}
 .drill-card h4{margin:0 0 10px;font-size:12px;color:#334155;font-weight:800;display:flex;align-items:center;gap:7px}
-.drill-card h4:before{content:"";width:4px;height:13px;border-radius:2px;background:linear-gradient(180deg,#7c93ff,#3b5bdb);display:inline-block}
+.drill-card h4:before{content:"";width:4px;height:13px;border-radius:2px;background:linear-gradient(180deg,#7c93ff,#0b64c8);display:inline-block}
 .drill-table th{font-size:11px}
 .drill-table td{font-size:11.5px}
 .drill-table tbody tr{cursor:pointer}
 .drill-empty{border:1px dashed #d7dfec;border-radius:12px;padding:18px;text-align:center;color:var(--muted);font-size:11.5px;background:#fbfcff}
 @media(max-width:900px){.drill-stats{grid-template-columns:repeat(2,1fr)}.drill-grid{grid-template-columns:1fr}}
-.grid-2{display:grid;grid-template-columns:1.05fr 1fr;gap:14px;margin-bottom:14px}
-.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:17px 18px;box-shadow:var(--shadow);min-width:0}
-.card h3{margin:0 0 13px;font-size:13.6px;font-weight:800;display:flex;align-items:center;gap:8px;letter-spacing:-.1px}
-.card h3:before{content:"";width:6px;height:6px;border-radius:50%;background:linear-gradient(135deg,#5b7cfa,#3b5bdb);flex:none;box-shadow:0 0 0 3px rgba(59,91,219,.12)}
-.card h3 .hint{font-size:10.5px;color:var(--muted);font-weight:500;margin-inline-start:auto}
+/* شبکهٔ نمای کلی به سبک داشبورد مدیریتی */
+.ov-row{display:grid;gap:10px;margin-bottom:10px;align-items:start}
+.ov-row-trend{grid-template-columns:minmax(0,2.55fr) minmax(300px,1fr)}
+.ov-row-four{grid-template-columns:repeat(4,minmax(0,1fr))}
+.ov-row-two{grid-template-columns:minmax(0,1fr) minmax(0,1.35fr)}
+.ov-row-three{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) minmax(0,1fr)}
+.ov-col{display:grid;gap:10px}
+.trend-card{display:flex;flex-direction:column}
+@media(max-width:1250px){.ov-row-trend{grid-template-columns:1fr}.ov-row-four{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:900px){.ov-row-four,.ov-row-two,.ov-row-three{grid-template-columns:1fr}}
+.grid-2{display:grid;grid-template-columns:1.05fr 1fr;gap:10px;margin-bottom:10px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;box-shadow:var(--shadow-sm);min-width:0}
+.card h3{margin:0 0 10px;font-size:12.8px;font-weight:800;display:flex;align-items:center;gap:8px;letter-spacing:-.1px;
+  padding-bottom:8px;border-bottom:1px solid #eef3f9}
+.card h3:before{content:"";width:4px;height:14px;border-radius:2px;background:linear-gradient(180deg,#1487e0,#0b64c8);flex:none}
+.card h3 .hint{font-size:10.2px;color:var(--muted);font-weight:500;margin-inline-start:auto}
 .card .empty{color:var(--muted);font-size:12px;padding:24px;text-align:center}
-.donut-wrap{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.donut-wrap{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
 .donut-legend{display:flex;flex-direction:column;gap:7px;flex:1;min-width:200px}
-.legend-item{display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;border-radius:8px;padding:3px 5px}
+.legend-item{display:flex;align-items:center;gap:7px;font-size:11.5px;cursor:pointer;border-radius:6px;padding:3px 5px}
 .legend-item:hover{background:#f8fafc}
 .dot{width:9px;height:9px;border-radius:99px;flex:none}
 .legend-item .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .legend-item .num{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
 .bars{display:flex;flex-direction:column;gap:9px}
-.bar-row{display:grid;grid-template-columns:minmax(120px,1.3fr) 3fr auto;gap:10px;align-items:center;font-size:12px}
+.bar-row{display:grid;grid-template-columns:minmax(110px,1.35fr) 3fr auto;gap:9px;align-items:center;font-size:11.5px;padding:2px 0}
 .bar-row .label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#334155;font-weight:600}
-.bar-row .track{height:9px;background:#eef2f8;border-radius:99px;overflow:hidden;box-shadow:inset 0 1px 2px rgba(16,24,40,.05)}
-.bar-row .fill{height:100%;border-radius:99px;min-width:2px;transition:width .3s ease;box-shadow:inset 0 1px 0 rgba(255,255,255,.25)}
-.bar-row .val{font-variant-numeric:tabular-nums;color:#475569;font-size:11.5px;min-width:52px;text-align:left;font-weight:700}
-.seg{display:inline-flex;background:#eff3f8;border-radius:999px;padding:3px;gap:2px;margin-bottom:8px}
-.seg button{border:0;background:transparent;padding:5px 13px;border-radius:999px;font-family:inherit;font-size:11.5px;font-weight:700;color:var(--muted);cursor:pointer;transition:background .15s,color .15s}
-.seg button.active{background:#fff;color:var(--teal);box-shadow:0 2px 6px -2px rgba(16,24,40,.25)}
+.bar-row .track{height:8px;background:#edf2f8;border-radius:2px;overflow:hidden}
+.bar-row .fill{height:100%;border-radius:2px;min-width:2px;transition:width .3s ease}
+.bar-row .val{font-variant-numeric:tabular-nums;color:#334155;font-size:11px;min-width:46px;text-align:left;font-weight:700}
+.seg{display:inline-flex;background:#eef3f9;border-radius:7px;padding:2px;gap:2px;margin-bottom:6px}
+.seg button{border:0;background:transparent;padding:4px 11px;border-radius:6px;font-family:inherit;font-size:11.2px;font-weight:700;color:var(--muted);cursor:pointer;transition:background .15s,color .15s}
+.seg button.active{background:#fff;color:var(--accent);box-shadow:0 1px 4px -1px rgba(16,24,40,.22)}
 .trend-wrap{position:relative;width:100%;overflow:hidden}
 .trend-wrap svg{width:100%;height:auto;display:block}
-.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:14px;max-height:640px;background:#fff}
+/* جدول دادهٔ روند (زیر نمودار) */
+.trend-legend{display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:11.5px;color:#334155;margin-bottom:6px}
+.trend-legend .k{display:inline-flex;align-items:center;gap:6px;font-weight:700}
+.trend-legend .sw{width:18px;height:3px;border-radius:2px;display:inline-block}
+.trend-legend .sw.dash{background:repeating-linear-gradient(90deg,#93a7bd 0 5px,transparent 5px 9px)}
+.trend-table{width:100%;border-collapse:collapse;font-size:11.3px;margin-top:8px;direction:rtl}
+.trend-table th,.trend-table td{border:1px solid #e3ecf6;padding:4px 6px;text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap}
+.trend-table th{background:#f2f7fd;color:#33506e;font-weight:700;font-size:10.8px}
+.trend-table td.lbl{background:#f8fbff;font-weight:700;text-align:right;white-space:nowrap}
+.trend-table tr.cur td{background:#eef7ff}
+.trend-table tr.prev td{background:#fff}
+.trend-table .up{color:#c2410c;font-weight:700}
+.trend-table .down{color:#0e7490;font-weight:700}
+.trend-table .flat{color:#64748b}
+.trend-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:9px}
+.trend-canvas{position:relative}
+.trend-details{margin-top:8px;border:1px solid #e3ecf6;border-radius:8px;background:#fbfdff;overflow:hidden}
+.trend-details>summary{cursor:pointer;padding:7px 11px;font-size:11.4px;font-weight:700;color:#33506e;list-style:none;display:flex;align-items:center;gap:8px}
+.trend-details>summary::-webkit-details-marker{display:none}
+.trend-details>summary:before{content:"▸";color:#0b64c8;font-size:12px;transition:transform .15s}
+.trend-details[open]>summary:before{transform:rotate(90deg)}
+.trend-details>summary:hover{background:#f1f7ff}
+.trend-details #trend-table{padding:0 8px 9px;overflow-x:auto}
+.trend-kpi{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#f8fbff}
+.trend-kpi .l{font-size:10.4px;color:var(--muted);font-weight:700}
+.trend-kpi .v{font-size:16px;font-weight:800;margin-top:1px;font-variant-numeric:tabular-nums}
+.trend-kpi .d{font-size:10.6px;font-weight:700;margin-top:1px}
+.trend-kpi .d.up{color:#c2410c}.trend-kpi .d.down{color:#0e7490}.trend-kpi .d.flat{color:#64748b}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:8px;max-height:640px;background:#fff}
 table{border-collapse:separate;border-spacing:0;width:100%;font-size:12px}
 thead th{
-  position:sticky;top:0;z-index:2;background:linear-gradient(180deg,#f9fafd,#f3f6fb);color:#3b4a5f;font-weight:700;text-align:right;
-  padding:11px 9px;border-bottom:1px solid var(--line);white-space:nowrap;font-size:11.2px;letter-spacing:.1px;
+  position:sticky;top:0;z-index:2;background:#f2f7fd;color:#33506e;font-weight:700;text-align:right;
+  padding:8px 8px;border-bottom:1px solid #dbe7f3;white-space:nowrap;font-size:10.9px;letter-spacing:.1px;
 }
 thead th.sortable{cursor:pointer;user-select:none}
-thead th.sortable:hover{color:var(--teal)}
-tbody td{padding:9px;border-bottom:1px solid #f2f5f9;vertical-align:middle}
-tbody tr:nth-child(even){background:#fcfdff}
-tbody tr:hover{background:#f4f7ff}
+thead th.sortable:hover{color:var(--accent)}
+tbody td{padding:6px 8px;border-bottom:1px solid #eff4f9;vertical-align:middle;font-size:11.6px}
+tbody tr:nth-child(even){background:#fbfdff}
+tbody tr:hover{background:#eff6ff}
 tbody tr.clickable{cursor:pointer}
 tbody tr:last-child td{border-bottom:0}
 .num{font-variant-numeric:tabular-nums;white-space:nowrap}
 .muted{color:var(--muted)}
 .tiny{font-size:10.5px}
-.badge{display:inline-block;padding:2px 9px;border-radius:99px;font-size:10.4px;font-weight:700;white-space:nowrap;border:1px solid transparent}
+.badge{display:inline-block;padding:1px 8px;border-radius:4px;font-size:10.2px;font-weight:700;white-space:nowrap;border:1px solid transparent}
 .badge.green{background:#e7f8f4;color:#0b6b5f;border-color:#c6f0e6}
 .badge.blue{background:#eaf1fe;color:#1d4ed8;border-color:#d9e6fd}
 .badge.amber{background:#fdf3e1;color:#8a5a05;border-color:#f8e5c3}
@@ -461,8 +500,8 @@ tbody tr:last-child td{border-bottom:0}
 .toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
 .toolbar .right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .search-mini{position:relative}
-.search-mini input{padding:8px 30px 8px 11px;border:1px solid var(--line);border-radius:11px;font-family:inherit;font-size:12.5px;width:260px;background:#f7f9fc;transition:box-shadow .15s,border-color .15s,background .15s}
-.search-mini input:focus{outline:none;border-color:#5eead4;background:#fff;box-shadow:0 0 0 4px rgba(20,184,166,.12)}
+.search-mini input{padding:6px 28px 6px 10px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:12px;width:240px;background:#fff;transition:box-shadow .15s,border-color .15s}
+.search-mini input:focus{outline:none;border-color:#7fb6ea;box-shadow:0 0 0 3px rgba(11,100,200,.1)}
 .search-mini:after{content:"⌕";position:absolute;right:9px;top:5px;color:var(--muted);font-size:16px}
 .pager{display:flex;gap:6px;align-items:center;justify-content:center;padding:10px 0 0;flex-wrap:wrap}
 .pager button{min-width:32px;height:30px;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px}
@@ -484,7 +523,7 @@ tbody tr:last-child td{border-bottom:0}
 .form-actions{display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}
 .form-state{font-size:11px;color:var(--muted)}
 .store-badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;padding:4px 10px;border-radius:99px}
-.store-badge.server{background:#ccfbf1;color:#0f766e}
+.store-badge.server{background:#ccfbf1;color:#0e7f9a}
 .store-badge.local{background:#fef3c7;color:#92400e}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:10px 18px;border-radius:12px;font-size:12.5px;z-index:200;opacity:0;transition:opacity .25s;pointer-events:none}
 .update-banner{position:fixed;bottom:20px;right:20px;z-index:210;display:none;gap:10px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 34px rgba(15,23,42,.18);padding:10px 14px;font-size:12.5px}
@@ -534,7 +573,7 @@ tbody tr:last-child td{border-bottom:0}
 .wm-card{border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:#fff}
 .wm-card.full{grid-column:1/-1}
 .wm-card h4{margin:0 0 10px;font-size:12px;color:#2f49b8;display:flex;align-items:center;gap:7px;font-weight:800}
-.wm-card h4::before{content:"";width:4px;height:14px;border-radius:2px;background:linear-gradient(180deg,#5b7cfa,#3b5bdb);display:inline-block}
+.wm-card h4::before{content:"";width:4px;height:14px;border-radius:2px;background:linear-gradient(180deg,#1487e0,#0b64c8);display:inline-block}
 .wm-rows{display:grid;grid-template-columns:118px 1fr;gap:7px 10px;font-size:12.5px}
 .wm-rows .k{color:var(--muted);font-weight:600}
 .wm-rows .v{color:var(--ink);word-break:break-word}
@@ -571,7 +610,7 @@ tbody tr:last-child td{border-bottom:0}
 .up-status.fail{color:#b4123e;font-weight:700}
 .up-bar{height:5px;border-radius:99px;background:#e2e8f0;overflow:hidden;display:none}
 .up-bar.show{display:block}
-.up-bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#3b5bdb,#5b7cfa);transition:width .2s}
+.up-bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#0b64c8,#1487e0);transition:width .2s}
 .up-steps{margin:0;padding-inline-start:18px;font-size:12px;line-height:2.1;color:#334155}
 .up-steps b{color:var(--ink)}
 .up-note{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:11.6px;line-height:2;color:#334155;margin-bottom:12px}
@@ -581,8 +620,17 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
 @media(max-width:1200px){.kpi-grid{grid-template-columns:repeat(3,1fr)}.filters{grid-template-columns:repeat(4,1fr)}.grid-3{grid-template-columns:1fr}}
 @media(max-width:760px){
   .kpi-grid{grid-template-columns:repeat(2,1fr)} .filters{grid-template-columns:repeat(2,1fr)}
-  .grid-2,.mini-grid{grid-template-columns:1fr} .topbar{padding:16px}
-  main{padding:14px} .search-mini input{width:100%} .bar-row{grid-template-columns:minmax(90px,1.2fr) 2fr auto}
+  .grid-2,.mini-grid{grid-template-columns:1fr} .topbar{padding:12px 14px}
+  main{padding:10px} .search-mini input{width:100%} .bar-row{grid-template-columns:minmax(80px,1.2fr) 2fr auto}
+  .ov-row-four,.ov-row-two,.ov-row-three,.ov-row-trend{grid-template-columns:1fr}
+  .trend-kpis{grid-template-columns:repeat(2,1fr)}
+  .brand h1{font-size:15px}.brand p{display:none}.logo{width:34px;height:34px;font-size:15px}
+}
+/* تبلت و لپ‌تاپ کوچک: ردیف چهارتایی دو ستونه و KPI سه‌ستونه */
+@media(max-width:1100px) and (min-width:761px){
+  .kpi-grid{grid-template-columns:repeat(3,1fr)}
+  .ov-row-four{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .filters{grid-template-columns:repeat(5,minmax(100px,1fr))}
 }
 @media print{
   .tabs,.filters,.toolbar,.pager,.btn{display:none!important}
@@ -647,47 +695,95 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
       <div class="cov-strip" id="coverage-strip"></div>
       <div class="cov-note" id="coverage-note"></div>
     </div>
-    <div class="grid-3">
-      <div class="card">
-        <h3>ریشهٔ ایراد <span class="hint">کلیک روی هر ریشه = باز شدن همان اخطارها</span></h3>
-        <div class="bars" id="root-bars"></div>
-        <div class="muted tiny" id="root-note" style="margin-top:10px"></div>
+
+    <!-- ردیف ۱: روند (مقایسه‌ای با سال قبل) + وضعیت + جزئیات وضعیت -->
+    <div class="ov-row ov-row-trend">
+      <div class="card trend-card">
+        <div class="toolbar" style="margin-bottom:6px">
+          <h3 style="margin:0;border:0;padding:0">روند اخطارها <span class="hint" id="trend-hint">مقایسه با سال قبل</span></h3>
+          <div class="right">
+            <div class="seg" id="trend-toggle">
+              <button data-mode="month" class="active">ماهانه</button><button data-mode="year">سالانه</button>
+            </div>
+            <div class="seg" id="trend-compare">
+              <button data-compare="yoy" class="active">با سال قبل</button><button data-compare="off">بدون مقایسه</button>
+            </div>
+          </div>
+        </div>
+        <div id="trend-kpis" class="trend-kpis"></div>
+        <div class="trend-canvas">
+          <div class="trend-legend" id="trend-legend"></div>
+          <div class="trend-wrap" id="trend"></div>
+        </div>
+        <details class="trend-details" id="trend-details">
+          <summary>جدول مقایسهٔ ماه‌به‌ماه با سال قبل</summary>
+          <div id="trend-table"></div>
+        </details>
       </div>
-      <div class="card">
-        <h3>پارتو قطعه در تحلیل <span class="hint">از «آنالیز علت ایراد» برگهٔ بررسی</span></h3>
-        <div class="bars" id="rootpart-bars"></div>
-        <div class="muted tiny" id="pareto-note" style="margin-top:8px"></div>
-      </div>
-      <div class="card">
-        <h3>ایرادهای تکراردار <span class="hint">تکرار همان ایراد در یک محصول</span></h3>
-        <div class="table-wrap" style="max-height:330px;overflow:auto"><table id="repeat-table"></table></div>
+      <div class="ov-col">
+        <div class="card">
+          <h3>وضعیت اخطارهای کیفی <span class="hint" id="status-total"></span></h3>
+          <div id="status-donut"></div>
+        </div>
+        <div class="card">
+          <h3>جزئیات وضعیت <span class="hint">مراحل اقدام</span></h3>
+          <div id="status-detail"></div>
+        </div>
       </div>
     </div>
-    <div class="card">
+
+    <!-- ردیف ۲: ریشه، قطعه، ایراد اعلام‌شده، واحد مسئول -->
+    <div class="ov-row ov-row-four">
+      <div class="card">
+        <h3>ریشهٔ ایراد <span class="hint">کلیک = ریزش اطلاعات</span></h3>
+        <div class="bars" id="root-bars"></div>
+        <div class="muted tiny" id="root-note" style="margin-top:6px"></div>
+      </div>
+      <div class="card">
+        <h3>قطعهٔ معیوب <span class="hint">از «آنالیز علت ایراد»</span></h3>
+        <div class="bars" id="rootpart-bars"></div>
+        <div class="muted tiny" id="pareto-note" style="margin-top:6px"></div>
+      </div>
+      <div class="card">
+        <h3>ایراد اعلام‌شده <span class="hint">متن مشتری</span></h3>
+        <div class="bars" id="ov-defect-bars"></div>
+      </div>
+      <div class="card">
+        <h3>واحد مسئول <span class="hint">گروه ساخت</span></h3>
+        <div class="bars" id="ov-make-bars"></div>
+      </div>
+    </div>
+
+    <!-- ردیف ۳: ۶M + ایرادهای تکراردار -->
+    <div class="ov-row ov-row-two">
+      <div class="card">
+        <h3>علت‌ها بر پایهٔ ۶M <span class="hint">از برگهٔ بررسی</span></h3>
+        <div class="bars" id="ov-m6-bars"></div>
+      </div>
+      <div class="card">
+        <h3>ایرادهای تکراردار <span class="hint">همان ایراد در یک محصول</span></h3>
+        <div class="table-wrap" style="max-height:250px"><table id="repeat-table"></table></div>
+      </div>
+    </div>
+
+    <!-- ردیف ۴: گروه‌ها + خانواده‌ها + محصولات -->
+    <div class="ov-row ov-row-three">
+      <div class="card"><h3>سهم گروه‌های محصول <span class="hint">تعداد اخطار</span></h3><div id="donut"></div></div>
+      <div class="card"><h3>پرتکرارترین خانواده‌ها <span class="hint">۱۲ خانواده</span></h3><div class="bars" id="family-bars"></div></div>
+      <div class="card"><h3>پرتکرارترین محصولات <span class="hint">۱۰ محصول</span></h3><div class="bars" id="product-bars"></div></div>
+    </div>
+
+    <div class="card" style="margin-bottom:10px">
       <div class="toolbar">
-        <h3 style="margin:0">جدول پارتو قطعه <span class="hint" id="pareto-count"></span></h3>
+        <h3 style="margin:0;border:0;padding:0">پارتو قطعه در تحلیل <span class="hint" id="pareto-count"></span></h3>
         <div class="right"><div class="search-mini"><input id="pareto-search" placeholder="جستجوی قطعه در تحلیل"></div></div>
       </div>
-      <div class="table-wrap" style="max-height:420px;overflow:auto"><table id="pareto-table"></table></div>
+      <div class="table-wrap" style="max-height:360px"><table id="pareto-table"></table></div>
     </div>
-    <div class="grid-2">
-      <div class="card"><h3>سهم گروه‌های محصول <span class="hint">بر اساس تعداد اخطار</span></h3><div id="donut"></div></div>
-      <div class="card"><h3 style="justify-content:space-between">روند اخطارها <span class="hint" id="trend-hint">سال شمسی</span></h3>
-        <div class="seg" id="trend-toggle"><button data-mode="year" class="active">سالانه</button><button data-mode="month">ماهانه</button></div>
-        <div class="trend-wrap" id="trend"></div></div>
-    </div>
-    <div class="grid-3">
-      <div class="card"><h3>وضعیت اخطار <span class="hint">خاتمه‌یافته / باز</span></h3><div id="status-donut"></div></div>
-      <div class="card"><h3>اقدام کوتاه مدت <span class="hint" id="st-count"></span></h3><div class="bars" id="st-bars"></div></div>
-      <div class="card"><h3>اقدام میان مدت <span class="hint" id="mt-count"></span></h3><div class="bars" id="mt-bars"></div></div>
-    </div>
-    <div class="grid-2">
-      <div class="card"><h3>پرتکرارترین خانواده‌ها <span class="hint">۱۲ خانواده اول</span></h3><div class="bars" id="family-bars"></div></div>
-      <div class="card"><h3>پرتکرارترین محصولات <span class="hint">۱۰ محصول اول</span></h3><div class="bars" id="product-bars"></div></div>
-    </div>
+
     <div class="card">
-      <h3>خلاصه گروه‌ها <span class="hint">با کلیک روی هر ردیف، فیلتر گروه اعمال می‌شود</span></h3>
-      <div class="table-wrap"><table id="group-table"></table></div>
+      <h3>خلاصه گروه‌ها <span class="hint">کلیک روی ردیف = فیلتر گروه</span></h3>
+      <div class="table-wrap" style="max-height:420px"><table id="group-table"></table></div>
     </div>
   </section>
 
@@ -858,7 +954,7 @@ if(!DATA){
   throw new Error("dashboard data missing");
 }
 const GROUP_COLORS = {
-  "Cluster Instrument":"#0f766e",
+  "Cluster Instrument":"#0e7f9a",
   "Nodes":"#3b6fe0",
   "EMS-توسعه و نگاشت موتور":"#7255d8",
   "TP-قطعات جانبی قوای محرکه":"#c9820f",
@@ -900,7 +996,7 @@ const catalogBadge = r => r.inCatalog ? '<span class="badge green">کاتالو�
 
 const state = {group:"",family:"",product:"",car:"",grade:"",status:"",priority:"",year:"",from:"",to:"",q:"",tab:"overview",warningSort:"priority",
   review:"",branch:"",defect:"",root:"",rootPart:"",quickFilter:"",defectCat:"all",productQ:"",warningQ:"",reviewQ:"",defectQ:"",formQ:"",formStatus:"",formScope:"working",paretoQ:"",
-  page:1,pageSize:25,productSort:{key:"warnings",dir:-1},trendMode:"year"};
+  page:1,pageSize:25,productSort:{key:"warnings",dir:-1},trendMode:"month",trendCompare:true};
 let currentProducts = [];
 let currentWarnings = [];
 let currentReviews = [];
@@ -1038,9 +1134,9 @@ function renderCoverage(rows){
   const unknown=rows.filter(r=>r.rootCause==="اعلام نشده").length;
   const base=total||1;
   const items=[
-    ["کل اخطارها",total,"مبنای همهٔ درصدها","#3b5bdb",()=>rows,null],
-    ["باز",open,pct(open/base)+" از کل","#e11d48",()=>rows.filter(r=>r.open),()=>{state.status="open";state.quickFilter="";}],
-    ["در حال بررسی",review,"باز با اقدام کوتاه/میان‌مدت","#d97706",()=>rows.filter(isUnderReview),()=>{state.status="";state.quickFilter="review";}],
+    ["کل اخطارها",total,"مبنای همهٔ درصدها","#0b64c8",()=>rows,null],
+    ["باز",open,pct(open/base)+" از کل","#d92d5c",()=>rows.filter(r=>r.open),()=>{state.status="open";state.quickFilter="";}],
+    ["در حال بررسی",review,"باز با اقدام کوتاه/میان‌مدت","#c47f0a",()=>rows.filter(isUnderReview),()=>{state.status="";state.quickFilter="review";}],
     ["دریافت نشده",notReceived,"باز بدون اقدام ثبت‌شده","#7c3aed",()=>rows.filter(isNotReceived),()=>{state.status="";state.quickFilter="notreceived";}],
     ["خاتمه‌یافته",closed,pct(closed/base)+" از کل","#0f9f8f",()=>rows.filter(r=>!r.open),()=>{state.status="closed";state.quickFilter="";}]
   ];
@@ -1137,11 +1233,11 @@ function openBreakdown(title,subtitle,rows,opts){
       </div>
     </div>
     <div class="drill-grid">
-      <div class="drill-card"><h4>ریشهٔ ایراد</h4>${drillBars(roots,"#3b5bdb")}</div>
+      <div class="drill-card"><h4>ریشهٔ ایراد</h4>${drillBars(roots,"#0b64c8")}</div>
       <div class="drill-card"><h4>${isPartMode?"گروه محصول این قطعه":"قطعه در تحلیل (پارتو)"}</h4>${drillBars(parts,"#0f9f8f",isPartMode?"warnings":"warnings")}</div>
     </div>
     <div class="drill-grid">
-      <div class="drill-card"><h4>پرتکرارترین ایراد مشتری</h4>${drillBars(defects,"#e11d48")}</div>
+      <div class="drill-card"><h4>پرتکرارترین ایراد مشتری</h4>${drillBars(defects,"#d92d5c")}</div>
       <div class="drill-card"><h4>وضعیت اخطارها</h4>${drillBars([
         {name:"در حال بررسی",warnings:review},
         {name:"دریافت نشده",warnings:open-review},
@@ -1202,7 +1298,7 @@ function renderRootPanel(rows){
     const top=known.slice(0,9);
     const max=Math.max(1,...top.map(i=>i.warnings));
     el.innerHTML=top.map(i=>`<div class="bar-row clickable" data-root="${esc(i.name)}" title="نمایش اخطارهای ریشهٔ «${esc(i.name)}»">
-      <div class="label">${esc(i.name)}</div><div class="track"><div class="fill" style="width:${i.warnings/max*100}%;background:#0f766e"></div></div><div class="val">${fmt(i.warnings)}</div></div>`).join("");
+      <div class="label">${esc(i.name)}</div><div class="track"><div class="fill" style="width:${i.warnings/max*100}%;background:#0e7f9a"></div></div><div class="val">${fmt(i.warnings)}</div></div>`).join("");
     $$("#root-bars [data-root]").forEach(row=>row.addEventListener("click",()=>goRoot(row.dataset.root)));
   }
   const note=$("#root-note");
@@ -1315,46 +1411,139 @@ function renderDonut(el,rows){
   }));
 }
 
+/* ───────────────────────── روند اخطارها با مقایسهٔ سال قبل ─────────────────────────
+   حالت «ماهانه»: ۱۲ ماه سال جاری در برابر همان ماه‌های سال قبل (خط چین).
+   حالت «سالانه»: همهٔ سال‌ها به‌صورت ستون/خط + ستون‌های سال قبل.
+   مبنای مقایسه، ردیف‌های همان فیلترهاست (نه کل داده). */
+function trendYears(rows){
+  const years=Array.from(new Set(rows.map(r=>Number(r.year)||0).filter(Boolean))).sort((a,b)=>a-b);
+  return years;
+}
+function trendMonthCounts(rows,year){
+  const out=new Array(12).fill(0);
+  rows.forEach(r=>{ if(Number(r.year)===Number(year) && r.monthKey){ const m=Number(r.monthKey)%100; if(m>=1&&m<=12) out[m-1]+=1; } });
+  return out;
+}
+function trendSum(arr){ return arr.reduce((a,b)=>a+b,0); }
+function deltaHtml(cur,prev,invert){
+  if(prev===null||prev===undefined) return `<span class="flat">—</span>`;
+  if(!prev) return cur? `<span class="${invert?"down":"up"}">جدید</span>` : `<span class="flat">۰</span>`;
+  const d=(cur-prev)/prev*100;
+  if(Math.abs(d)<0.5) return `<span class="flat">۰٪</span>`;
+  const up=d>0, cls=invert?(up?"down":"up"):(up?"up":"down");
+  const shown = Math.abs(d).toLocaleString("fa-IR",{maximumFractionDigits:1});
+  return `<span class="${cls}">${up?"▲":"▼"} ${shown}٪</span>`;
+}
+function renderTrendLegacy(el,rows){ /* نگه‌داشته‌شده برای سازگاری؛ استفاده نمی‌شود */ }
 function renderTrend(el,rows){
-  const mode=state.trendMode;
-  // فقط بازهٔ انتخاب‌شده (یا بازهٔ داده) رسم می‌شود؛ ماه‌های بدون اخطار در دو سر بازه حذف می‌شوند
-  const counts=new Map();
-  const monthLabels=new Map();
-  rows.forEach(r=>{
-    const k = mode==="year" ? String(r.year||"") : String(r.monthKey||"");
-    if(!k || k==="0") return;
-    counts.set(k,(counts.get(k)||0)+1);
-    if(mode!=="year") monthLabels.set(k,r.month||"");
-  });
-  let keys = Array.from(counts.keys()).sort();
-  if(!keys.length){ empty(el,"در بازهٔ انتخاب‌شده اخطاری وجود ندارد"); return; }
-  // پر کردن ماه‌های خالی بین دو سر بازه تا نمودار پیوسته باشد
+  const mode=state.trendMode||"month";
+  const compare=state.trendCompare!==false;
+  if(!rows.length){ empty(el,"در بازهٔ انتخاب‌شده اخطاری وجود ندارد"); $("#trend-legend").innerHTML=""; $("#trend-table").innerHTML=""; return; }
+  const years=trendYears(rows);
+  if(!years.length){ empty(el,"سال شمسی برای این ردیف‌ها ثبت نشده است"); return; }
+
+  // ── سال مبنا: بزرگ‌ترین سالی که در فیلتر فعلی داده دارد
+  const currentYear = state.year ? Number(state.year) : years[years.length-1];
+  const previousYear = currentYear-1;
+
   if(mode==="month"){
-    const allKeys = Array.from(new Set(DATA.warnings.map(r=>r.monthKey).filter(Boolean))).sort((a,b)=>a-b);
-    const first = Number(keys[0]), last = Number(keys[keys.length-1]);
-    keys = allKeys.filter(k=>Number(k)>=first && Number(k)<=last).map(String);
+    const cur=trendMonthCounts(rows,currentYear);
+    const prev=compare?trendMonthCounts(rows,previousYear):null;
+    const W=880,H=280,pad={l:44,r:16,t:16,b:40};
+    const iw=W-pad.l-pad.r, ih=H-pad.t-pad.b;
+    const max=Math.max(1,...cur,...(prev||[0]));
+    const x=i=>pad.l+(iw/(12-1))*i;
+    const y=v=>pad.t+ih-(v/max)*ih;
+    let grid="",labels="";
+    for(let g=0;g<=4;g++){
+      const yy=pad.t+ih-(g/4)*ih;
+      grid+=`<line x1="${pad.l}" y1="${yy}" x2="${W-pad.r}" y2="${yy}" stroke="#eef3f9" stroke-width="1"/>`;
+      grid+=`<text x="${pad.l-6}" y="${yy+4}" text-anchor="end" font-size="9" fill="#94a3b8">${fmt(Math.round(max*g/4))}</text>`;
+    }
+    const names=["فروردین","اردیبهشت","خرداد","تیر","مرداد","شهریور","مهر","آبان","آذر","دی","بهمن","اسفند"];
+    names.forEach((n,i)=>labels+=`<text x="${x(i)}" y="${H-16}" text-anchor="middle" font-size="9" fill="#64748b">${esc(n)}</text>`);
+    const curPts=cur.map((v,i)=>`${x(i)},${y(v)}`).join(" ");
+    const prevPts=prev?prev.map((v,i)=>`${x(i)},${y(v)}`).join(" "):"";
+    const curDots=cur.map((v,i)=>`<circle cx="${x(i)}" cy="${y(v)}" r="3.4" fill="#0b64c8"><title>${names[i]} ${faDigits(currentYear)}: ${fmt(v)} اخطار</title></circle>`).join("");
+    const prevDots=prev?prev.map((v,i)=>`<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="#fff" stroke="#8aa4c0" stroke-width="1.6"><title>${names[i]} ${faDigits(previousYear)}: ${fmt(v)} اخطار</title></circle>`).join(""):"";
+    const curVals=cur.map((v,i)=>v?`<text x="${x(i)}" y="${y(v)-8}" text-anchor="middle" font-size="9.5" font-weight="700" fill="#0b64c8">${fmt(v)}</text>`:"").join("");
+    el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img">
+      <defs><linearGradient id="gradCur" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#0b64c8" stop-opacity=".16"/><stop offset="1" stop-color="#0b64c8" stop-opacity="0"/></linearGradient></defs>
+      ${grid}
+      ${prev?`<polyline points="${prevPts}" fill="none" stroke="#9fb3c8" stroke-width="2" stroke-dasharray="5 4"/>`:""}
+      <polygon points="${pad.l},${pad.t+ih} ${curPts} ${x(11)},${pad.t+ih}" fill="url(#gradCur)"/>
+      <polyline points="${curPts}" fill="none" stroke="#0b64c8" stroke-width="2.6"/>
+      ${prevDots}${curDots}${curVals}${labels}
+    </svg>`;
+    const curTotal=trendSum(cur), prevTotal=prev?trendSum(prev):null;
+    // حداکثر تا همین ماه در سال جاری برای مقایسهٔ منصفانه
+    const lastMonth=cur.reduce((acc,v,i)=>v?i+1:acc,0)||12;
+    const curUpto=trendSum(cur.slice(0,lastMonth));
+    const prevUpto=prev?trendSum(prev.slice(0,lastMonth)):null;
+    const legend=$("#trend-legend");
+    if(legend){
+      legend.innerHTML=`<span class="k"><span class="sw" style="background:#0b64c8"></span>سال ${faDigits(currentYear)}${state.year?" (فیلتر)":""}</span>`+
+        (compare?`<span class="k"><span class="sw dash"></span>سال ${faDigits(previousYear)}</span>`:`<span class="muted">مقایسه خاموش است</span>`)+
+        `<span class="muted tiny">مقایسه تا پایان ${esc(names[lastMonth-1]||"")}</span>`;
+    }
+    const table=$("#trend-table");
+    if(table){
+      const head=names.map(n=>`<th>${esc(n)}</th>`).join("");
+      const rowCur=cur.map(v=>`<td>${fmt(v)}</td>`).join("");
+      const rowPrev=prev?prev.map(v=>`<td>${fmt(v)}</td>`).join(""):"";
+      const rowDiff=prev?cur.map((v,i)=>`<td>${v-(prev[i]||0)>0?"+":""}${fmt(v-(prev[i]||0))}</td>`).join(""):"";
+      const kpiBox=$("#trend-kpis");
+      if(kpiBox) kpiBox.innerHTML=`
+          <div class="trend-kpi"><div class="l">اخطار سال ${faDigits(currentYear)}</div><div class="v">${fmt(curTotal)}</div><div class="d">${deltaHtml(curTotal,prevTotal,true)} نسبت به سال قبل</div></div>
+          <div class="trend-kpi"><div class="l">سال ${faDigits(previousYear)}</div><div class="v">${prevTotal===null?"—":fmt(prevTotal)}</div><div class="d flat">کل سال</div></div>
+          <div class="trend-kpi"><div class="l">هم‌بازه تا ${esc(names[lastMonth-1]||"")}</div><div class="v">${fmt(curUpto)} <span class="muted tiny">/ ${prevUpto===null?"—":fmt(prevUpto)}</span></div><div class="d">${deltaHtml(curUpto,prevUpto,true)}</div></div>
+          <div class="trend-kpi"><div class="l">اختلاف تا امروز</div><div class="v">${prevUpto===null?"—":fmt(curUpto-prevUpto)}</div><div class="d flat">اخطار</div></div>`;
+      table.innerHTML=compare?`<table class="trend-table"><thead><tr><th class="lbl">ماه / سال</th>${head}<th>جمع</th></tr></thead><tbody>
+          <tr class="cur"><td class="lbl">${faDigits(currentYear)}</td>${rowCur}<td><b>${fmt(curTotal)}</b></td></tr>
+          <tr class="prev"><td class="lbl">${faDigits(previousYear)}</td>${rowPrev}<td><b>${fmt(prevTotal||0)}</b></td></tr>
+          <tr><td class="lbl">اختلاف</td>${rowDiff}<td><b>${fmt(curTotal-(prevTotal||0))}</b></td></tr>
+        </tbody></table>`:"";
+    }
+    return;
   }
-  const data=keys.map(k=>({key:k,label: mode==="year" ? k : (monthLabels.get(k) || monthLabel(k)), value:counts.get(k)||0}));
-  const max=Math.max(1,...data.map(d=>d.value));
-  const W=820,H=270,pad={l:40,r:14,t:16,b:38};
+
+  // ── حالت سالانه
+  const counts=years.map(y=>rows.filter(r=>Number(r.year)===y).length);
+  const W=880,H=270,pad={l:46,r:16,t:16,b:38};
   const iw=W-pad.l-pad.r, ih=H-pad.t-pad.b;
-  const step=data.length>1?iw/(data.length-1):0;
+  const max=Math.max(1,...counts);
+  const step=years.length>1?iw/(years.length-1):0;
   const x=i=>pad.l+i*step;
   const y=v=>pad.t+ih-(v/max)*ih;
-  const pts=data.map((d,i)=>`${x(i)},${y(d.value)}`).join(" ");
-  const area=`${pad.l},${pad.t+ih} ${pts} ${x(data.length-1)},${pad.t+ih}`;
   let grid="",labels="";
   for(let g=0;g<=4;g++){
-    const val=max*g/4, yy=pad.t+ih-(g/4)*ih;
-    grid+=`<line x1="${pad.l}" y1="${yy}" x2="${W-pad.r}" y2="${yy}" stroke="#eef2f7" stroke-width="1"/>`;
-    grid+=`<text x="${pad.l-6}" y="${yy+4}" text-anchor="end" font-size="9" fill="#94a3b8">${fmt(Math.round(val))}</text>`;
+    const yy=pad.t+ih-(g/4)*ih;
+    grid+=`<line x1="${pad.l}" y1="${yy}" x2="${W-pad.r}" y2="${yy}" stroke="#eef3f9"/>`;
+    grid+=`<text x="${pad.l-6}" y="${yy+4}" text-anchor="end" font-size="9" fill="#94a3b8">${fmt(Math.round(max*g/4))}</text>`;
   }
-  const labelStep = mode==="year" ? Math.ceil(data.length/14) : Math.ceil(data.length/10);
-  data.forEach((d,i)=>{ if(i%labelStep===0 || i===data.length-1){
-    labels+=`<text x="${x(i)}" y="${H-14}" text-anchor="middle" font-size="9" fill="#64748b">${esc(faDigits(d.label))}</text>`;
-  }});
-  const dots=data.map((d,i)=>`<circle cx="${x(i)}" cy="${y(d.value)}" r="3" fill="#0f766e"><title>${esc(faDigits(d.label))}: ${fmt(d.value)} اخطار</title></circle>`).join("");
-  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img"><defs><linearGradient id="grad" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#14b8a6" stop-opacity=".35"/><stop offset="1" stop-color="#14b8a6" stop-opacity="0"/></linearGradient></defs>${grid}<polygon points="${area}" fill="url(#grad)"/><polyline points="${pts}" fill="none" stroke="#0f766e" stroke-width="2.5"/>${dots}${labels}</svg>`;
+  const stepLbl=Math.ceil(years.length/12);
+  years.forEach((yr,i)=>{ if(i%stepLbl===0||i===years.length-1) labels+=`<text x="${x(i)}" y="${H-14}" text-anchor="middle" font-size="9" fill="#64748b">${faDigits(yr)}</text>`; });
+  const bars=years.map((yr,i)=>{
+    const bw=Math.max(6,Math.min(30,step*0.55));
+    const isCur=yr===currentYear;
+    return `<rect x="${x(i)-bw/2}" y="${y(counts[i])}" width="${bw}" height="${pad.t+ih-y(counts[i])}" rx="2" fill="${isCur?"#0b64c8":"#9cc3e8"}"><title>${faDigits(yr)}: ${fmt(counts[i])} اخطار</title></rect>`;
+  }).join("");
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img">${grid}${bars}${labels}</svg>`;
+  const legend=$("#trend-legend");
+  if(legend) legend.innerHTML=`<span class="k"><span class="sw" style="background:#0b64c8"></span>سال جاری</span><span class="k"><span class="sw" style="background:#9cc3e8"></span>سال‌های قبل</span>`;
+  const order=years.slice().reverse().slice(0,10);
+  const thisYearCount=rows.filter(r=>Number(r.year)===currentYear).length;
+  const lastYearCount=rows.filter(r=>Number(r.year)===previousYear).length;
+  const kpiBox=$("#trend-kpis");
+  if(kpiBox) kpiBox.innerHTML=`
+      <div class="trend-kpi"><div class="l">اخطار سال ${faDigits(currentYear)}</div><div class="v">${fmt(thisYearCount)}</div><div class="d">${deltaHtml(thisYearCount,lastYearCount,true)} نسبت به سال قبل</div></div>
+      <div class="trend-kpi"><div class="l">سال ${faDigits(previousYear)}</div><div class="v">${fmt(lastYearCount)}</div><div class="d flat">کل سال</div></div>
+      <div class="trend-kpi"><div class="l">بیشترین سال</div><div class="v">${faDigits(years[counts.indexOf(Math.max(...counts))]||"—")}</div><div class="d flat">${fmt(Math.max(...counts))} اخطار</div></div>
+      <div class="trend-kpi"><div class="l">میانگین سالانه</div><div class="v">${fmt(Math.round(counts.reduce((a,b)=>a+b,0)/counts.length))}</div><div class="d flat">${faDigits(years.length)} سال</div></div>`;
+  const table=$("#trend-table");
+  if(table) table.innerHTML=`<table class="trend-table"><thead><tr><th class="lbl">سال</th>${order.map(y=>`<th>${faDigits(y)}</th>`).join("")}</tr></thead>
+    <tbody><tr class="cur"><td class="lbl">اخطار</td>${order.map(y=>`<td>${fmt(rows.filter(r=>Number(r.year)===y).length)}</td>`).join("")}</tr>
+    <tr><td class="lbl">تغییر</td>${order.map((y,i)=>{ if(i===order.length-1) return `<td>—</td>`; const now=rows.filter(r=>Number(r.year)===y).length, before=rows.filter(r=>Number(r.year)===order[i+1]).length; return `<td>${deltaHtml(now,before,true)}</td>`; }).join("")}</tr></tbody></table>`;
 }
 
 function monthLabel(key){
@@ -1370,16 +1559,16 @@ function renderBars(el,items,valueKey="warnings",colorFn=null,labelFn=null){
   const max=Math.max(1,...items.map(i=>i[valueKey]||0));
   el.innerHTML=items.map(item=>{
     const p=(item[valueKey]||0)/max*100;
-    const col=colorFn?colorFn(item):"#0f766e";
+    const col=colorFn?colorFn(item):"#0e7f9a";
     const label=labelFn?labelFn(item):item.name;
     return `<div class="bar-row"><div class="label" title="${esc(label)}">${esc(label)}</div><div class="track"><div class="fill" style="width:${p}%;background:${col}"></div></div><div class="val">${fmt(item[valueKey]||0)}</div></div>`;
   }).join("");
 }
 
 const STAGE_COLORS = {
-  "خاتمه يافته":"#0f766e",
-  "اقدام ميان مدت":"#d97706",
-  "اقدام كوتاه مدت":"#e11d48",
+  "خاتمه يافته":"#0e7f9a",
+  "اقدام ميان مدت":"#c47f0a",
+  "اقدام كوتاه مدت":"#d92d5c",
   "تنظيم":"#7c3aed"
 };
 function stageName(s){ return s==="خاتمه يافته" ? "خاتمه‌یافته" : s || "نامشخص"; }
@@ -1393,8 +1582,8 @@ function renderStatusDonut(el, rows){
   const total = rows.length || 1;
   const size=190, r0=68, c=95, stroke=22, circ=2*Math.PI*r0;
   const closedLen = circ*(closed/total);
-  const arcs = `<circle cx="${c}" cy="${c}" r="${r0}" fill="none" stroke="#0f766e" stroke-width="${stroke}" stroke-dasharray="${closedLen} ${circ-closedLen}" stroke-dashoffset="0" transform="rotate(-90 ${c} ${c})"><title>خاتمه‌یافته: ${fmt(closed)}</title></circle>
-    <circle cx="${c}" cy="${c}" r="${r0}" fill="none" stroke="#e11d48" stroke-width="${stroke}" stroke-dasharray="${circ-closedLen} ${circ-(circ-closedLen)}" stroke-dashoffset="${-closedLen}" transform="rotate(-90 ${c} ${c})"><title>باز: ${fmt(open)}</title></circle>`;
+  const arcs = `<circle cx="${c}" cy="${c}" r="${r0}" fill="none" stroke="#0e7f9a" stroke-width="${stroke}" stroke-dasharray="${closedLen} ${circ-closedLen}" stroke-dashoffset="0" transform="rotate(-90 ${c} ${c})"><title>خاتمه‌یافته: ${fmt(closed)}</title></circle>
+    <circle cx="${c}" cy="${c}" r="${r0}" fill="none" stroke="#d92d5c" stroke-width="${stroke}" stroke-dasharray="${circ-closedLen} ${circ-(circ-closedLen)}" stroke-dashoffset="${-closedLen}" transform="rotate(-90 ${c} ${c})"><title>باز: ${fmt(open)}</title></circle>`;
   const order = ["خاتمه يافته","اقدام ميان مدت","اقدام كوتاه مدت","تنظيم"];
   const legend = order.filter(k=>counts[k]).map(k=>`<div class="legend-item" data-stage="${esc(k)}">
       <span class="dot" style="background:${STAGE_COLORS[k]||"#94a3b8"}"></span>
@@ -1406,14 +1595,54 @@ function renderStatusDonut(el, rows){
   </svg><div class="donut-legend">${legend}</div></div>`;
 }
 
+/* جزئیات وضعیت: ترکیب سه‌گانهٔ وضعیت + مراحل اقدام کوتاه/میان‌مدت در یک کارت */
+function renderStatusDetail(rows){
+  const el=$("#status-detail"), total=$("#status-total");
+  if(!el) return;
+  const n=rows.length||1;
+  const closed=rows.filter(r=>!r.open).length;
+  const review=rows.filter(isUnderReview).length;
+  const notReceived=rows.filter(isNotReceived).length;
+  if(total) total.textContent=`${fmt(rows.length)} اخطار`;
+  const items=[
+    {name:"خاتمه‌یافته", value:closed, color:"#0e7f9a", hint:"رسیدگی تمام شده"},
+    {name:"در حال بررسی", value:review, color:"#0b64c8", hint:"برگهٔ بررسی فعال"},
+    {name:"عدم دریافت قطعه", value:notReceived, color:"#d92d5c", hint:"منتظر قطعه"}
+  ];
+  const max=Math.max(1,...items.map(i=>i.value));
+  const bars=items.map(i=>`<div class="bar-row" style="cursor:pointer" data-status="${esc(i.name)}">
+      <div class="label">${esc(i.name)}<span class="muted tiny"> ${esc(i.hint)}</span></div>
+      <div class="track"><div class="fill" style="width:${i.value/max*100}%;background:${i.color}"></div></div>
+      <div class="val">${fmt(i.value)} · ${pct(i.value/n)}</div></div>`).join("");
+  const st=groupAgg(rows,"stAction").sort((a,b)=>b.warnings-a.warnings).slice(0,4);
+  const mt=groupAgg(rows,"mtAction").sort((a,b)=>b.warnings-a.warnings).slice(0,4);
+  const mini=(title,list,color)=>`<div style="margin-top:8px">
+      <div class="tiny muted" style="font-weight:700;margin-bottom:3px">${title}</div>
+      ${list.length?list.map(i=>`<div class="bar-row"><div class="label" title="${esc(i.name||"—")}">${esc(i.name||"—")}</div>
+        <div class="track"><div class="fill" style="width:${i.warnings/(list[0].warnings||1)*100}%;background:${color}"></div></div>
+        <div class="val">${fmt(i.warnings)}</div></div>`).join(""):'<div class="muted tiny">—</div>'}
+    </div>`;
+  el.innerHTML=bars+mini("اقدام کوتاه مدت",st,"#d92d5c")+mini("اقدام میان مدت",mt,"#c47f0a");
+  $$("[data-status]",el).forEach(row=>row.addEventListener("click",()=>{
+    const key=row.dataset.status;
+    if(key==="در حال بررسی"){ state.quickFilter="review"; }
+    else if(key==="عدم دریافت قطعه"){ state.quickFilter="notreceived"; }
+    else { state.quickFilter=""; state.status="closed"; }
+    state.page=1; syncSelects(); render();
+  }));
+}
+
 function renderActionBars(rows){
-  const st = state.stActionCounts || {};
+  // مراحل اقدام داخل کارت «جزئیات وضعیت» رسم می‌شوند؛ اگر کارت‌های مستقل وجود
+  // داشتند (نسخه‌های قدیمی قالب) همان‌ها هم پر می‌شوند.
   const stItems = groupAgg(rows,"stAction").sort((a,b)=>b.warnings-a.warnings);
   const mtItems = groupAgg(rows,"mtAction").sort((a,b)=>b.warnings-a.warnings);
-  $("#st-count").textContent = `${fmt(rows.filter(r=>r.status==="اقدام كوتاه مدت").length)} اخطار در این مرحله`;
-  $("#mt-count").textContent = `${fmt(rows.filter(r=>r.status==="اقدام ميان مدت").length)} اخطار در این مرحله`;
-  renderBars($("#st-bars"), stItems.slice(0,6), "warnings", i=>i.name==="تاييد مشتري" ? "#0f766e" : "#e11d48");
-  renderBars($("#mt-bars"), mtItems.slice(0,6), "warnings", i=>i.name==="تاييد مشتري" ? "#0f766e" : (i.name==="غيرضروري" ? "#94a3b8" : "#d97706"));
+  const stCount=$("#st-count"), mtCount=$("#mt-count");
+  if(stCount) stCount.textContent = `${fmt(rows.filter(r=>r.status==="اقدام كوتاه مدت").length)} اخطار در این مرحله`;
+  if(mtCount) mtCount.textContent = `${fmt(rows.filter(r=>r.status==="اقدام ميان مدت").length)} اخطار در این مرحله`;
+  const accentOk="#0e7f9a";
+  if($("#st-bars")) renderBars($("#st-bars"), stItems.slice(0,6), "warnings", i=>i.name==="تاييد مشتري" ? accentOk : "#d92d5c");
+  if($("#mt-bars")) renderBars($("#mt-bars"), mtItems.slice(0,6), "warnings", i=>i.name==="تاييد مشتري" ? accentOk : (i.name==="غيرضروري" ? "#94a3b8" : "#c47f0a"));
 }
 
 function renderReviewKpis(rows){
@@ -1514,7 +1743,7 @@ function renderGroupsTab(rows){
 }
 function renderFamiliesTab(rows){
   const items=groupAgg(rows,"family").sort((a,b)=>b.warnings-a.warnings);
-  renderBars($("#families-bars"),items.slice(0,14),"warnings",()=>"#0f766e",i=>i.name);
+  renderBars($("#families-bars"),items.slice(0,14),"warnings",()=>"#0e7f9a",i=>i.name);
   renderBars($("#families-qty"),items.slice().sort((a,b)=>b.qty-a.qty).slice(0,14),"qty",()=>"#0891b2",i=>i.name);
   $("#families-table").innerHTML=`<thead><tr><th>خانواده محصول</th><th>گروه محصول</th><th>اخطار</th><th>قطعات معیوب</th><th>نمره منفی</th><th>محصولات</th><th>اخطار باز</th><th>نیاز به بازبینی</th></tr></thead>
   <tbody>${items.map(i=>{
@@ -1523,7 +1752,7 @@ function renderFamiliesTab(rows){
   }).join("")}</tbody>`;
 }
 function renderProductBars(rows){
-  renderBars($("#product-bars"),groupAgg(rows,"product").sort((a,b)=>b.warnings-a.warnings).slice(0,10),"warnings",i=>color((rows.find(r=>r.product===i.name)||{}).group||"#0f766e"),i=>i.name);
+  renderBars($("#product-bars"),groupAgg(rows,"product").sort((a,b)=>b.warnings-a.warnings).slice(0,10),"warnings",i=>color((rows.find(r=>r.product===i.name)||{}).group||"#0e7f9a"),i=>i.name);
 }
 
 function productRows(rows){
@@ -1628,7 +1857,7 @@ function renderQuality(rows){
   renderUnmatched();
   renderQualityKpis(rows);
   const methods=groupAgg(rows,"method").sort((a,b)=>b.warnings-a.warnings);
-  renderBars($("#method-bars"),methods.slice(0,10),"warnings",()=>"#0f766e",i=>i.name);
+  renderBars($("#method-bars"),methods.slice(0,10),"warnings",()=>"#0e7f9a",i=>i.name);
   const out=groupAgg(rows.filter(r=>!r.inScope),"family").sort((a,b)=>b.warnings-a.warnings);
   renderBars($("#out-bars"),out.slice(0,10),"warnings",()=>"#94a3b8",i=>i.name.replace("خارج از دامنه - ",""));
   const reviews=rows.filter(r=>r.review).slice(0,200);
@@ -1693,9 +1922,9 @@ function renderDefectsTab(rows){
   ];
   if(empty) cards[0][2]=`از ${fmt(scoped.length)} اخطار · بدون دسته: ${fmt(empty)}`;
   $("#defect-kpis").innerHTML=cards.map(([l,v,s,c])=>`<div class="kpi ${c}"><div class="label">${l}</div><div class="value">${v}</div><div class="sub">${s}</div></div>`).join("");
-  renderBars($("#defect-bars"),items.slice(0,10),"warnings",()=>"#e11d48",i=>i.name);
+  renderBars($("#defect-bars"),items.slice(0,10),"warnings",()=>"#d92d5c",i=>i.name);
   const m6=groupAgg(rows.filter(r=>r.m6&&r.m6!=="نامشخص"),"m6").sort((a,b)=>b.warnings-a.warnings);
-  renderBars($("#m6-bars"),m6,"warnings",i=>i.name==="تجهیزات"?"#0f766e":"#d97706",i=>i.name);
+  renderBars($("#m6-bars"),m6,"warnings",i=>i.name==="تجهیزات"?"#0e7f9a":"#c47f0a",i=>i.name);
 
   const q=state.defectQ.trim().toLowerCase();
   let list=items.filter(i=>!q || (i.name+" "+i.group+" "+i.cat).toLowerCase().includes(q));
@@ -2249,6 +2478,11 @@ function initFilters(){
     setTrendMode(btn.dataset.mode);
     renderTrend($("#trend"),applyFilters());
   }));
+  $$("#trend-compare button").forEach(btn=>btn.addEventListener("click",()=>{
+    state.trendCompare = btn.dataset.compare!=="off";
+    $$("#trend-compare button").forEach(b=>b.classList.toggle("active", b===btn));
+    renderTrend($("#trend"),applyFilters());
+  }));
   $("#modal-close").addEventListener("click",()=>$("#modal").classList.add("hidden"));
   $("#modal").addEventListener("click",e=>{if(e.target.id==="modal") $("#modal").classList.add("hidden");});
   document.addEventListener("keydown",e=>{if(e.key==="Escape") $("#modal").classList.add("hidden");});
@@ -2257,7 +2491,7 @@ function setTrendMode(mode){
   state.trendMode = mode;
   $$("#trend-toggle button").forEach(b=>b.classList.toggle("active", b.dataset.mode===mode));
   const hint = $("#trend-hint");
-  if(hint) hint.textContent = mode==="year" ? "سال شمسی" : "ماه شمسی";
+  if(hint) hint.textContent = mode==="year" ? "سال شمسی" : (state.trendCompare? "مقایسه با سال قبل" : "ماه شمسی");
 }
 
 function switchTab(tab){
@@ -2276,9 +2510,13 @@ function render(){
   renderRepeatPanel(rows);
   renderDonut($("#donut"),rows);
   renderStatusDonut($("#status-donut"),rows);
+  renderStatusDetail(rows);
   renderActionBars(rows);
   renderTrend($("#trend"),rows);
-  renderBars($("#family-bars"),groupAgg(rows,"family").sort((a,b)=>b.warnings-a.warnings).slice(0,12),"warnings",i=>color((rows.find(r=>r.family===i.name)||{}).group||"#0f766e"),i=>i.name);
+  renderBars($("#ov-defect-bars"), groupAgg(rows,"defectGroup").sort((a,b)=>b.warnings-a.warnings).slice(0,8), "warnings", ()=> "#d92d5c");
+  renderBars($("#ov-make-bars"), groupAgg(rows,"make").sort((a,b)=>b.warnings-a.warnings).slice(0,8), "warnings", ()=> "#0b64c8");
+  renderBars($("#ov-m6-bars"), groupAgg(rows.filter(r=>r.m6 && r.m6!=="نامشخص"),"m6").sort((a,b)=>b.warnings-a.warnings).slice(0,7), "warnings", ()=> "#1e4fd8");
+  renderBars($("#family-bars"),groupAgg(rows,"family").sort((a,b)=>b.warnings-a.warnings).slice(0,12),"warnings",i=>color((rows.find(r=>r.family===i.name)||{}).group||"#0e7f9a"),i=>i.name);
   renderProductBars(rows);
   renderGroupTable(rows);
   renderGroupsTab(rows);
