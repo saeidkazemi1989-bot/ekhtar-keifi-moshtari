@@ -36,8 +36,10 @@ status=$?
 
 echo
 if [ $status -eq 0 ]; then
-  echo "پایان موفق. فایل‌ها در پوشهٔ output/ هستند."
-  echo "برای تکمیل فرم‌های 8D و بارگذاری دادهٔ تازه داخل داشبورد: bash serve.sh"
+  echo "گزارش ساخته شد؛ برنامهٔ قابل ویرایش در مرورگر باز می‌شود."
+  echo "این پنجره را تا پایان کار باز نگه دارید."
+  .venv/bin/python serve.py
+  status=$?
 else
   echo "ساخت گزارش با خطا تمام شد (کد $status). شرح کامل: output/build.log"
 fi

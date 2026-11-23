@@ -52,10 +52,10 @@ set RESULT=%errorlevel%
 
 echo.
 if %RESULT%==0 (
-  echo Done. The output folder will open now.
-  start "" "%~dp0output"
+  echo Done. Starting the editable dashboard in your browser.
+  echo Keep this window open while using the dashboard.
   echo.
-  echo To fill 8D forms and upload fresh data inside the dashboard, run serve.bat
+  ".venv\Scripts\python.exe" serve.py --port 8000
 ) else (
   echo Build failed with code %RESULT%. See output\build.log for details.
 )

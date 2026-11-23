@@ -27,6 +27,7 @@ OUTPUT_DIR = ROOT / "output"
 FORMS_NAME = "8d-forms.json"
 DEFECT_OVERRIDES_NAME = "اصلاح ایرادها.xlsx"
 GROUP_OVERRIDES_NAME = "اصلاحات گروه‌بندی.xlsx"
+MANUAL_FIX_NAME = "اصلاح ریشه و قطعه.json"
 
 # فایل‌های ورودی خام (گزارش اخطار، کاتالوگ راهکاران، گروه‌بندی محصولات، برگه‌های
 # بررسی و قالب 8D). هر فایل تازه‌ای که با همین کلید در داشبورد بارگذاری شود در
@@ -267,7 +268,7 @@ def watched_paths() -> list[Path]:
         for pattern in ("فرم ثبت محصولات برگشتی*.xls*", "*محصولات برگشتی*.xls*"):
             paths.extend(sorted(base.glob(pattern)))
     # فرم‌های 8D در داشبورد زنده خوانده می‌شوند؛ ذخیرهٔ فرم نیازی به ساخت دوباره ندارد
-    for name in (DEFECT_OVERRIDES_NAME, GROUP_OVERRIDES_NAME):
+    for name in (DEFECT_OVERRIDES_NAME, GROUP_OVERRIDES_NAME, MANUAL_FIX_NAME):
         candidate = DATA_DIR / name
         if candidate.exists():
             paths.append(candidate)

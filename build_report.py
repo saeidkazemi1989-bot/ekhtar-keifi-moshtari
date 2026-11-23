@@ -200,7 +200,7 @@ def main() -> int:
     # ایمپورت‌ها بعد از بررسی انجام می‌شوند تا پیام خطا خوانا باشد
     import pandas as pd
 
-    from src import eight_d_store, storage
+    from src import eight_d_store, manual_fix, storage
     from src.aggregate import tech_table
     from src.catalog import add_branch, load_catalog
     from src import defect_learn
@@ -347,6 +347,13 @@ def main() -> int:
 
     # «قطعه» از دل «آنالیز علت ایراد» برگهٔ بررسی (مثل میکرو، LCD، کانکتور)
     enriched = add_analysis_part(enriched)
+
+    # اصلاح‌های دستی کاربر که داخل برنامه ثبت شده‌اند (ریشه/قطعه) بر همهٔ
+    # محاسبات خودکار اولویت دارند: داشبورد، اکسل و فرم‌های 8D یک مقدار می‌بینند.
+    manual_entries = manual_fix.load()
+    enriched, fixed_rows = manual_fix.apply(enriched, manual_entries)
+    if manual_entries:
+        log(f"   اصلاح دستی ریشه/قطعه: {fixed_rows:,} اخطار از {len(manual_entries):,} رکورد ثبت‌شده")
     parts = part_summary(enriched)
     if not parts.empty:
         named = int(parts["تعداد برگهٔ بررسی"].sum())

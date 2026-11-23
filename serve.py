@@ -35,7 +35,7 @@ OUTPUT = ROOT / "output"
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src import eight_d_store, storage  # noqa: E402
+from src import eight_d_store, manual_fix, storage  # noqa: E402
 
 # داده‌های کاربر در data/ نگه داشته می‌شوند (بیرون از پوشهٔ خروجی)
 STORE = storage.forms_path()
@@ -46,6 +46,7 @@ UPLOAD_CHUNK = 1024 * 1024
 BUILD_LOG = OUTPUT / "rebuild.log"
 BUILD_TIMEOUT = 900
 BUILD_LOCK = threading.Lock()
+BUILD_PENDING = False
 BUILD_STATE: dict = {
     "state": "idle",
     "started": None,
@@ -129,19 +130,26 @@ def _run_build() -> None:
         except OSError:
             error = f"ساخت گزارش با کد {code} متوقف شد"
 
+    global BUILD_PENDING
     with BUILD_LOCK:
+        pending = BUILD_PENDING
+        BUILD_PENDING = False
         BUILD_STATE.update(
             state="done" if code == 0 and not error else "error",
             finished=time.time(),
             error=error,
             returncode=code,
         )
+    if pending:
+        _start_build(trigger="queued")
 
 
 def _start_build(trigger: str = "manual") -> bool:
     """شروع ساخت؛ اگر ساخت دیگری در جریان است False برمی‌گرداند."""
+    global BUILD_PENDING
     with BUILD_LOCK:
         if BUILD_STATE["state"] == "running":
+            BUILD_PENDING = True
             return False
         BUILD_STATE.update(
             state="running",
@@ -229,7 +237,7 @@ class Handler(SimpleHTTPRequestHandler):
             super().send_header("Cache-Control", "no-store")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
         super().end_headers()
 
     def log_message(self, fmt: str, *args) -> None:  # noqa: A003
@@ -258,6 +266,20 @@ class Handler(SimpleHTTPRequestHandler):
                     "stats": eight_d_store.stats(entries, serials),
                     "fields": eight_d_store.FIELDS,
                     "statuses": list(eight_d_store.STATUS_OPTIONS),
+                }
+            )
+            return
+        if path in {"/api/fix", "/api/fix/"}:
+            entries = manual_fix.load()
+            roots = sorted({str(item.get("root")).strip() for item in entries.values() if item.get("root")})
+            self._json(
+                {
+                    "ok": True,
+                    "entries": entries,
+                    "count": len(entries),
+                    "roots": roots,
+                    "fields": manual_fix.FIELDS,
+                    "path": str(manual_fix.store_path().name),
                 }
             )
             return
@@ -299,6 +321,9 @@ class Handler(SimpleHTTPRequestHandler):
             payload.update({"ok": True, "startedNow": started})
             self._json(payload, 200 if started else 409)
             return
+        if path in {"/api/fix", "/api/fix/"}:
+            self._receive_fix()
+            return
         if path not in {"/api/8d", "/api/8d/"}:
             self._json({"error": "مسیر ناشناخته"}, 404)
             return
@@ -335,6 +360,44 @@ class Handler(SimpleHTTPRequestHandler):
                 "stats": eight_d_store.stats(entries, list(entries.keys())),
             }
         )
+
+    def _receive_fix(self) -> None:
+        """ثبت اصلاح ریشه/قطعهٔ یک اخطار و ساخت دوبارهٔ گزارش.
+
+        بدنه: ``{"serial": 235, "root": "…", "part": "…", "rebuild": true}``
+        مقدار خالی یعنی «اصلاح حذف شود و مقدار خودکار برگردد».
+        """
+        length = int(self.headers.get("Content-Length") or 0)
+        if length <= 0 or length > MAX_BODY:
+            self._json({"error": "حجم درخواست نامعتبر است"}, 400)
+            return
+        try:
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+        except Exception:
+            self._json({"error": "JSON نامعتبر"}, 400)
+            return
+        if not isinstance(payload, dict):
+            self._json({"error": "درخواست نامعتبر است"}, 400)
+            return
+        serials = payload.get("serials", [payload.get("serial")])
+        if not isinstance(serials, list) or not serials or len(serials) > 500 or any(not str(x or "").strip().isdigit() for x in serials):
+            self._json({"error": "شماره اخطار نامعتبر است"}, 400)
+            return
+        values = {field: payload[field] for field in manual_fix.FIELDS if field in payload}
+        if not values or any(not isinstance(value, str) or len(value) > 500 for value in values.values()):
+            self._json({"error": "مقادیر ارسالی نامعتبر است"}, 400)
+            return
+        if values.get("process", "") not in ("", "تولید", "مواد اولیه", "تامین‌کننده", "طراحی مهندسی", "مشتری"):
+            self._json({"error": "واحد مسئول نامعتبر است"}, 400)
+            return
+        try:
+            entries = manual_fix.update_many(serials, values)
+        except Exception as error:  # noqa: BLE001
+            self._json({"error": f"ذخیرهٔ اصلاح ناموفق بود: {error}"}, 500)
+            return
+        started = _start_build(trigger="fix") if payload.get("rebuild", True) else False
+        self._json({"ok": True, "entry": entries.get(str(serials[0]), {}), "entries": entries,
+                    "count": len(entries), "buildStarted": started, "state": _build_snapshot().get("state")})
 
     def _receive_input(self) -> None:
         """دریافت فایل ورودی خام (بدنهٔ خام فایل، نه فرم) و ذخیرهٔ نسخهٔ تازه.
@@ -423,6 +486,12 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_DELETE(self) -> None:  # noqa: N802
         path = unquote(urlparse(self.path).path)
+        if path.startswith("/api/fix/"):
+            serial = path.rsplit("/", 1)[-1]
+            entry = manual_fix.update(serial, {field: "" for field in manual_fix.FIELDS})
+            _start_build(trigger="fix")
+            self._json({"ok": True, "serial": serial, "entry": entry, "count": len(manual_fix.load())})
+            return
         if not path.startswith("/api/8d/"):
             self._json({"error": "مسیر ناشناخته"}, 404)
             return
@@ -448,7 +517,11 @@ def main() -> int:
         print("داشبورد ساخته نشده است. اول اجرا کنید:  python build_report.py")
         return 1
 
-    server = ThreadingHTTPServer((args.host, args.port), Handler)
+    try:
+        server = ThreadingHTTPServer((args.host, args.port), Handler)
+    except OSError as exc:
+        print(f"سرور روی پورت {args.port} اجرا نشد: {exc}. اگر نسخهٔ قبلی برنامه باز است، آن را ببندید و دوباره اجرا کنید.")
+        return 1
     url = f"http://localhost:{args.port}/"
     print("=" * 60)
     print("  داشبورد اخطارهای کیفی — حالت ویرایش فرم‌های 8D")

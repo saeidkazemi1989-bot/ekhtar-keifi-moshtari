@@ -68,8 +68,9 @@ def add_status_group(enriched: pd.DataFrame) -> pd.DataFrame:
     has_review = (frame["دارای برگه بررسی"] == "بله") if "دارای برگه بررسی" in frame else pd.Series(False, index=frame.index)
     origin = frame.get("منشاء ایراد", pd.Series([""] * len(frame), index=frame.index)).fillna("").astype(str)
     has_root = origin.map(lambda v: _process_bucket(v) != PROCESS_UNKNOWN)
+    manual_root = frame.get("ریشهٔ دستی ثبت شده", pd.Series("خیر", index=frame.index)) == "بله"
     is_open = frame["وضعیت اخطار"] != "خاتمه يافته"
-    in_review = ~not_received & ((has_review & ~has_root) | is_open)
+    in_review = ~not_received & ((has_review & ~(has_root | manual_root)) | is_open)
     closed = ~not_received & ~in_review
     frame["گروه وضعیت"] = [
         STATUS_NOT_RECEIVED if a else (STATUS_IN_REVIEW if b else STATUS_CLOSED)
@@ -210,6 +211,10 @@ def _payload(
                 "defectSrc": _clean_text(row.get("منبع ایراد", "")),
                 "rootCause": _clean_text(row.get("ریشهٔ ایراد", "")),
                 "analysisPart": _clean_text(row.get("قطعهٔ تحلیل", "")),
+                "manualFix": row.get("اصلاح دستی", "خیر") == "بله",
+                "autoRoot": _clean_text(row.get("مقدار خودکار root", "")),
+                "autoPart": _clean_text(row.get("مقدار خودکار part", "")),
+                "autoProcess": _process_bucket(row.get("مقدار خودکار process", "")),
                 "groupPath": _clean_text(row.get("قطعه (گروه‌بندی)", "")),
                 "defectCat": _clean_text(row.get("دسته‌بندی ایراد", "")),
                 "defectGroup": _clean_text(row.get("گروه ایراد", "")),
@@ -327,7 +332,14 @@ def build_html(
         )
         script = f'<script src="{data_path.name}?v={int(time.time())}"></script>'
 
-    html = TEMPLATE.replace("__DATA_SCRIPT__", script)
+    try:
+        from . import manual_fix
+
+        fixed_roots = json.dumps(manual_fix.root_values(), ensure_ascii=False).replace("<", "\\u003c")
+    except Exception:  # pragma: no cover - اگر ماژول در دسترس نباشد
+        fixed_roots = "[]"
+    html = TEMPLATE.replace("__FIX_ROOTS__", fixed_roots)
+    html = html.replace("__DATA_SCRIPT__", script)
     output_path.write_text(html, encoding="utf-8")
     return output_path
 
@@ -399,9 +411,27 @@ a{color:inherit}
   box-shadow:0 8px 18px -14px rgba(11,100,200,.95), inset 0 1px 0 rgba(255,255,255,.22);
 }
 .filters{
-  padding:10px 18px; background:#f8fbff; border-bottom:1px solid var(--line);
-  display:grid; grid-template-columns:repeat(7,minmax(110px,1fr)); gap:8px; align-items:end;
+  padding:9px 18px 10px; background:#f8fbff; border-bottom:1px solid var(--line);
+  display:flex; flex-direction:column; gap:8px;
 }
+/* ردیف همیشگی: جستجو + قطعه + برچسب‌های فیلتر فعال */
+.ftop{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+.ftop .field{min-width:0}
+.ftop .f-q{flex:1 1 300px;max-width:520px}
+.ftop .f-part{flex:0 1 240px}
+.fchips-bar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-inline-start:auto;font-size:10.8px;color:var(--muted)}
+.fchips-bar:empty{display:none}
+/* بخش فیلترهای بیشتر: گروه‌بندی موضوعی، جمع‌وجور و مرتب */
+.fmore{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;padding-top:2px}
+.fmore.collapsed{display:none}
+.fgroup{border:1px solid #e7eefa;border-radius:9px;background:#fff;padding:7px 9px 9px;min-width:0}
+.fgroup-title{font-size:10.2px;font-weight:800;color:#3f5d84;margin-bottom:5px;display:flex;align-items:center;gap:5px}
+.fgroup-title:before{content:"";width:5px;height:5px;border-radius:50%;background:#0b64c8;display:inline-block}
+.fgroup-grid{display:grid;grid-template-columns:1fr;gap:6px}
+.factions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.factions .btn{padding:7px 12px}
+@media(max-width:1200px){.fmore{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.fmore{grid-template-columns:1fr}.ftop .field{flex:1 1 100%;max-width:none}}
 .field label{display:block;font-size:10.4px;color:var(--muted);margin-bottom:3px;font-weight:700;letter-spacing:.1px}
 .field select,.field input{
   width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:#fff;
@@ -488,6 +518,26 @@ main{padding:14px 18px 34px;max-width:1760px;margin:0 auto}
 .cov-note b{color:#4b5b70}
 @media(max-width:900px){.cov-strip{grid-template-columns:repeat(2,1fr)}.cov-item:nth-child(odd){border-inline-start:0}.cov-item:nth-child(n+3){border-top:1px solid var(--line)}}
 
+/* ------------------------------------------------------------ اصلاح ریشه/قطعه */
+.fix-intro{background:#f6f9ff;border:1px solid #dbe7f3;border-radius:10px;padding:10px 12px;font-size:11.6px;line-height:2;color:#334155;margin-bottom:10px}
+.fix-path{background:#fff;border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:10.6px;color:#1e4fd8;direction:ltr;display:inline-block}
+.fix-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.fix-seg{display:inline-flex;background:#eef3f9;border-radius:9px;padding:2px;gap:2px}
+.fix-seg button{border:0;background:transparent;font-family:inherit;font-size:11.4px;font-weight:700;color:#5b7288;padding:6px 11px;border-radius:7px;cursor:pointer}
+.fix-seg button.active{background:#fff;color:#0b64c8;box-shadow:0 1px 2px rgba(16,24,40,.1)}
+.fix-table td,.fix-table th{font-size:11.2px}
+.fix-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fbfdff;margin-bottom:12px;flex-wrap:wrap}
+.fix-serial{font-size:13px;font-weight:800;color:#0b1b2b}
+.fix-defect{font-size:12.4px;font-weight:700;margin:2px 0}
+.fix-bulk{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;background:#f6f9ff;border:1px solid #dbe7f3;border-radius:10px;padding:8px 10px;margin-bottom:10px}
+.fix-bulk .field{margin:0}
+.fix-bulk input{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:12px}
+.fix-table input[type=checkbox]{width:15px;height:15px;accent-color:#0b64c8;cursor:pointer}
+.fix-form{display:grid;gap:10px}
+.fix-form .field{max-width:460px}
+.fix-hint{line-height:1.9}
+.fix-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.modal-body .fix-form input,.modal-body .fix-form select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:12.4px}
 /* ------------------------------------------------------------ ریزش اطلاعات */
 .drill-hero{
   position:relative;overflow:hidden;border-radius:18px;padding:18px 18px 16px;margin-bottom:14px;color:#fff;
@@ -745,9 +795,9 @@ tbody tr:last-child td{border-bottom:0}
 .up-note b{color:var(--ink)}
 @media(max-width:760px){.up-grid{grid-template-columns:1fr}}
 footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
-@media(max-width:1200px){.kpi-grid{grid-template-columns:repeat(3,1fr)}.filters{grid-template-columns:repeat(4,1fr)}.grid-3{grid-template-columns:1fr}}
+@media(max-width:1200px){.kpi-grid{grid-template-columns:repeat(3,1fr)}.grid-3{grid-template-columns:1fr}}
 @media(max-width:760px){
-  .kpi-grid{grid-template-columns:repeat(2,1fr)} .filters{grid-template-columns:repeat(2,1fr)}
+  .kpi-grid{grid-template-columns:repeat(2,1fr)}
   .grid-2,.mini-grid{grid-template-columns:1fr} .topbar{padding:12px 14px}
   main{padding:10px} .search-mini input{width:100%} .bar-row{grid-template-columns:minmax(80px,1.2fr) 2fr auto}
   .ov-row-four,.ov-row-two,.ov-row-three,.ov-row-trend{grid-template-columns:1fr}
@@ -758,7 +808,6 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
 @media(max-width:1100px) and (min-width:761px){
   .kpi-grid{grid-template-columns:repeat(3,1fr)}
   .ov-row-four{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .filters{grid-template-columns:repeat(5,minmax(100px,1fr))}
 }
 @media print{
   .tabs,.filters,.toolbar,.pager,.btn{display:none!important}
@@ -778,6 +827,7 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
   </div>
   <div class="meta" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:flex-end">
     <div id="meta"></div>
+    <button class="btn" id="fix-open" title="ثبت یا تغییر ریشه و قطعه مستقیماً داخل برنامه، بدون اکسل" style="background:#4f46e5;color:#fff;border:1px solid #818cf8;padding:9px 15px;white-space:nowrap">✎ ثبت و اصلاح ریشه و قطعه</button>
     <button class="btn" id="open-upload" title="بارگذاری فایل‌های تازهٔ ورودی (اخطار، ListData، گروه‌بندی، برگهٔ بررسی) و ساخت خودکار گزارش" style="background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.28);padding:9px 15px;white-space:nowrap;backdrop-filter:blur(6px);box-shadow:inset 0 1px 0 rgba(255,255,255,.18)">⤒ بارگذاری داده</button>
     <button class="btn" id="refresh-data" title="ساخت دوبارهٔ گزارش از فایل‌های ورودی (داده‌های ذخیره‌شده حفظ می‌شوند)" style="background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.28);padding:9px 15px;white-space:nowrap;backdrop-filter:blur(6px);box-shadow:inset 0 1px 0 rgba(255,255,255,.18)">⟳ به‌روزرسانی</button>
     <span id="auto-refresh-badge" class="tiny" style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:5px 11px;color:#d6e2ff" title="اگر فایل‌های ورودی یا برنامه تغییر کند، گزارش خودکار تازه می‌شود"><span class="dot-live off"></span><span id="auto-refresh-text">به‌روزرسانی خودکار</span></span>
@@ -794,24 +844,46 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
   <button class="tab" data-tab="forms8d">فرم‌های 8D</button>
   <button class="tab" data-tab="quality">کیفیت تطبیق</button>
 </nav>
-<div class="filters">
-  <div class="field"><label>گروه محصول</label><select id="f-group"></select></div>
-  <div class="field"><label>خانواده محصول</label><select id="f-family"></select></div>
-  <div class="field"><label>محصول</label><select id="f-product"></select></div>
-  <div class="field"><label>برنچ</label><select id="f-branch"></select></div>
-  <div class="field"><label>گروه خودرو</label><select id="f-car"></select></div>
-  <div class="field"><label>گرید ایراد</label><select id="f-grade"></select></div>
-  <div class="field"><label>سال</label><select id="f-year"></select></div>
-  <div class="field"><label>از ماه</label><select id="f-from"></select></div>
-  <div class="field"><label>تا ماه</label><select id="f-to"></select></div>
-  <div class="field" style="grid-column:span 3"><label>جستجو (شرح قطعه، شماره فنی، محصول، سریال)</label><input id="f-q" placeholder="مثلاً NBCM یا جلوآمپر یا IK01750880"></div>
-  <div class="field" style="grid-column:span 2"><label>وضعیت مؤثر اخطار</label><select id="f-status"></select></div>
-  <div class="field"><label>اولویت اخطار</label><select id="f-priority"></select></div>
-  <div class="field"><label>برگه بررسی</label><select id="f-review"></select></div>
-  <div class="field"><label>ریشهٔ ایراد</label><select id="f-root"></select></div>
-  <div class="field"><label>قطعهٔ تحلیل</label><select id="f-rootpart"></select></div>
-  <div class="field"><label>فرآیند مسئول</label><select id="f-process"></select></div>
-  <div class="filter-actions" style="grid-column:span 4">
+<div class="filters" id="filters">
+  <div class="ftop" id="filters-top"></div>
+  <div class="fmore" id="filters-more">
+    <div class="fgroup">
+      <div class="fgroup-title">محصول و گروه</div>
+      <div class="fgroup-grid">
+        <div class="field"><label>گروه محصول</label><select id="f-group"></select></div>
+        <div class="field"><label>خانواده محصول</label><select id="f-family"></select></div>
+        <div class="field"><label>محصول</label><select id="f-product"></select></div>
+        <div class="field"><label>برنچ</label><select id="f-branch"></select></div>
+        <div class="field"><label>گروه خودرو</label><select id="f-car"></select></div>
+      </div>
+    </div>
+    <div class="fgroup">
+      <div class="fgroup-title">زمان</div>
+      <div class="fgroup-grid">
+        <div class="field"><label>سال</label><select id="f-year"></select></div>
+        <div class="field"><label>از ماه</label><select id="f-from"></select></div>
+        <div class="field"><label>تا ماه</label><select id="f-to"></select></div>
+      </div>
+    </div>
+    <div class="fgroup">
+      <div class="fgroup-title">وضعیت و اولویت</div>
+      <div class="fgroup-grid">
+        <div class="field"><label>وضعیت مؤثر اخطار</label><select id="f-status"></select></div>
+        <div class="field"><label>اولویت اخطار</label><select id="f-priority"></select></div>
+        <div class="field"><label>برگه بررسی</label><select id="f-review"></select></div>
+        <div class="field"><label>گرید ایراد</label><select id="f-grade"></select></div>
+      </div>
+    </div>
+    <div class="fgroup">
+      <div class="fgroup-title">ریشه و مسئولیت</div>
+      <div class="fgroup-grid">
+        <div class="field"><label>ریشهٔ ایراد</label><select id="f-root"></select></div>
+        <div class="field"><label>قطعهٔ تحلیل</label><select id="f-rootpart"></select></div>
+        <div class="field"><label>فرآیند مسئول</label><select id="f-process"></select></div>
+      </div>
+    </div>
+  </div>
+  <div class="factions">
     <button class="btn" id="reset">پاک‌کردن</button>
     <button class="btn primary" id="export">خروجی CSV</button>
     <button class="btn" id="print">چاپ</button>
@@ -1083,6 +1155,7 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
 
 __DATA_SCRIPT__
 <script>
+const FIX_ROOTS = __FIX_ROOTS__;
 const DATA = window.DASHBOARD_DATA;
 if(!DATA){
   document.body.insertAdjacentHTML("afterbegin",'<div style="padding:40px;text-align:center;font-family:Tahoma;direction:rtl">دادهٔ داشبورد بارگذاری نشد. فایل داده (dashboard-data.js) باید کنار همین فایل HTML باشد.</div>');
@@ -1129,7 +1202,7 @@ const confBadge = c => {
 const reviewBadge = r => r.review ? '<span class="badge red">بازبینی</span>' : "";
 const catalogBadge = r => r.inCatalog ? '<span class="badge green">کاتالوگ</span>' : (r.inScope ? '<span class="badge slate">سایر</span>' : '<span class="badge slate">خارج</span>');
 
-const state = {group:"",family:"",product:"",car:"",grade:"",status:"",priority:"",year:"",from:"",to:"",q:"",m6:"",make:"",process:"",tab:"overview",warningSort:"priority",
+const state = {group:"",family:"",product:"",car:"",grade:"",status:"",priority:"",year:"",from:"",to:"",q:"",m6:"",make:"",process:"",part:"",tab:"overview",warningSort:"priority",
   review:"",branch:"",defect:"",root:"",rootPart:"",quickFilter:"",defectCat:"all",productQ:"",warningQ:"",reviewQ:"",defectQ:"",formQ:"",formStatus:"",formScope:"working",paretoQ:"",
   page:1,pageSize:25,productSort:{key:"warnings",dir:-1},trendMode:"month",trendCompare:true,barsCompare:false};
 let currentProducts = [];
@@ -1163,6 +1236,10 @@ function applyFilters(opts){
     if(state.m6 && (r.m6||"نامشخص")!==state.m6) return false;
     if(state.make && r.make!==state.make) return false;
     if(state.process && r.process!==state.process) return false;
+    if(state.part){
+      const key=state.part;
+      if(!(String(r.part||"").indexOf(key)>=0 || String(r.analysisPart||"").indexOf(key)>=0 || String(r.tech||"").indexOf(key)>=0)) return false;
+    }
     if(state.quickFilter==="notreceived" && !isNotReceived(r)) return false;
     if(state.car && r.car!==state.car) return false;
     if(state.grade && r.grade!==state.grade) return false;
@@ -2186,7 +2263,7 @@ function renderWarningsTab(rows){
         <div class="muted" style="font-size:10px">${esc([r.family,r.group?gLabel(r.group):""].filter(Boolean).join(" · ")||"—")}</div>
       </td>
       <td class="tiny" title="${esc(r.defect)}">${esc(r.defect||"—")} ${r.defectRepeat>1?`<span class="badge red">×${fmt(r.defectRepeat)}</span>`:""}</td>
-      <td class="tiny">${rootText(r)==="—"?'<span class="muted">—</span>':`<span class="badge amber">${esc(rootText(r))}</span>`}</td>
+      <td class="tiny">${rootText(r)==="—"?'<span class="muted">ثبت نشده</span>':`<span class="badge amber">${esc(rootText(r))}</span>`} <button class="wm-link" data-edit-root="${r.id}" title="ثبت یا اصلاح ریشه و قطعه داخل برنامه">✎ ویرایش</button></td>
       <td class="tiny">${esc(r.tech||"—")}</td><td class="tiny" title="${esc(r.rahkaran)}">${esc(r.rahkaran.length>34?r.rahkaran.slice(0,34)+"…":r.rahkaran||"—")}</td>
       <td class="tiny">${esc(r.family)}</td><td class="tiny">${esc(r.product)}</td>
       <td class="tiny"><span class="group-pill"><span class="dot" style="background:${color(r.group)}"></span>${esc(gLabel(r.group))}</span></td>
@@ -2194,6 +2271,9 @@ function renderWarningsTab(rows){
       <td class="num">${esc(r.grade)}</td><td>${statusBadge(r)}</td><td class="tiny">${priorityBadge(r)}</td><td class="num">${fmt(r.qty)}</td><td class="num">${fmt(r.score)}</td>
       <td>${confBadge(r.confidence)} ${r.hasReview?`<button class="wm-link" data-review="${r.id}" title="باز کردن برگهٔ بررسی متصل به این اخطار">برگهٔ بررسی</button>`:reviewBadge(r)}</td></tr>`).join("")}</tbody>`;
   $$("#warnings-table tbody tr").forEach(tr=>tr.addEventListener("click",()=>openWarning(Number(tr.dataset.id))));
+  $$("#warnings-table [data-edit-root]").forEach(btn=>btn.addEventListener("click",async event=>{
+    event.stopPropagation(); await FIX_READY; openFixEditor(Number(btn.dataset.editRoot));
+  }));
   $$("#warnings-table [data-review]").forEach(btn=>btn.addEventListener("click",event=>{
     event.stopPropagation(); openWarning(Number(btn.dataset.review),"review");
   }));
@@ -2407,6 +2487,182 @@ const FORM_STORE={
     return ok?{ok:true,entry:this.data[key]}:{ok:false,error:"ذخیره در مرورگر ممکن نشد"};
   }
 };
+/* ---------------------------------------------------------------- اصلاح دستی ریشه/قطعه
+   کاربر می‌تواند ریشهٔ ایراد یک اخطار را عوض کند یا برای بخشی از اخطارها
+   «قطعه» را وارد کند؛ ذخیره در data/اصلاح ریشه و قطعه.json و ساخت خودکار گزارش. */
+let FIX_READY=Promise.resolve();
+const FIX_STORE={ data:{}, mode:"unavailable", async init(){
+    try{
+      const r=await fetch("api/fix",{cache:"no-store",headers:{"Accept":"application/json"}});
+      if(r.ok){ const payload=await r.json(); this.data=payload.entries||{}; this.mode="server"; return; }
+    }catch(e){}
+    this.mode="unavailable";
+  },
+  async save(serials,values){
+    if(this.mode!=="server") return {ok:false,error:"برای ذخیره، برنامه را با serve.py اجرا کنید؛ باز کردن مستقیم فایل کافی نیست"};
+    try{
+      const r=await fetch("api/fix",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({...values,serials:Array.isArray(serials)?serials:[serials],rebuild:true})});
+      const payload=await r.json();
+      if(!r.ok) return {ok:false,error:payload.error||"خطای سرور"};
+      this.data=payload.entries||{}; return {ok:true,entry:payload.entry};
+    }catch(e){ return {ok:false,error:"ارتباط با سرور قطع است"}; }
+  }};
+const fixOf=r=>FIX_STORE.data[String(r.id)]||{};
+const fixLabel=r=>{const f=fixOf(r);return f.root||f.part||"";};
+
+function openFixPicker(){
+  const base=applyFilters();
+  const noRoot=base.filter(r=>!r.hasReview || !hasRootCause(r));
+  $("#modal-title").textContent="اصلاح ریشه و قطعه";
+  $("#modal-body").innerHTML=`
+    <div class="fix-intro">
+      <b>چه کاری می‌توانید بکنید:</b> ریشهٔ ایرادِ هر اخطار را عوض کنید، برای اخطاری که ریشه ندارد آن را ثبت کنید،
+      یا برای اخطارهایی که «قطعهٔ تحلیل» خالی است قطعه را وارد کنید — همه‌جا در برنامه، بدون دست‌زدن به اکسل.
+      ذخیره در <span class="fix-path">data/اصلاح ریشه و قطعه.json</span> و گزارش خودکار دوباره ساخته می‌شود.
+    </div>
+    `;
+  $("#modal-foot").innerHTML=`<div class="muted tiny">${fmt(base.length)} اخطار در فیلتر فعلی · ${fmt(noRoot.length)} بدون ریشه/برگه · ${fmt(Object.keys(FIX_STORE.data).length)} اصلاح ثبت‌شده</div>
+    <button class="btn" id="fix-close">بستن</button>`;
+  $("#fix-close").addEventListener("click",()=>$("#modal").classList.add("hidden"));
+  openFixBrowser("all");
+  $("#modal").classList.remove("hidden");
+}
+
+/* فهرست اخطارها برای اصلاح، با جستجو و صافی سریع */
+function openFixBrowser(mode,query){
+  const body=$("#modal-body"); if(!body) return;
+  const q=(query||"").trim().toLowerCase();
+  const base=applyFilters();
+  let list=base.filter(r=>{
+    if(mode==="noroot") return !fixOf(r).root && (!r.hasReview || !hasRootCause(r));
+    if(mode==="nopart") return !r.analysisPart;
+    if(mode==="fixed") return !!FIX_STORE.data[String(r.id)];
+    return true;
+  });
+  if(q) list=list.filter(r=>haystack(r).includes(q));
+  const total=list.length;
+  list=list.slice().sort(byPriority).slice(0,60);
+  const tabs=[["all","همه"],["noroot","بدون ریشهٔ ثبت‌شده"],["nopart","بدون قطعهٔ تحلیل"],["fixed","اصلاح‌شده‌ها"]];
+  body.innerHTML=`
+    <div class="fix-intro">برای هر اخطار «اصلاح» را بزنید، یا ردیف‌ها را انتخاب و ریشه و/یا قطعه را گروهی ثبت کنید. برای ذخیره باید برنامه از طریق سرور اجرا شده باشد؛ پس از بازسازی، گزارش تازه را بارگذاری کنید.</div>
+    <div class="fix-toolbar">
+      <div class="fix-seg">${tabs.map(([key,label])=>`<button data-fix-tab="${key}" class="${mode===key?"active":""}">${label}</button>`).join("")}</div>
+      <div class="field" style="flex:1;min-width:200px"><input id="fix-search" placeholder="جستجو: سریال، شرح قطعه، شماره فنی، ایراد" value="${esc(query||"")}"></div>
+    </div>
+    <div class="muted tiny">نمایش ${fmt(list.length)} از ${fmt(total)} اخطار؛ برای یافتن ردیف‌های دیگر جستجو یا فیلتر کنید. انتخاب همه فقط ردیف‌های نمایش‌داده‌شده را انتخاب می‌کند.</div>
+    <div class="fix-bulk">
+      <div class="field" style="flex:1;min-width:200px"><label>ریشه برای ردیف‌های انتخاب‌شده (اختیاری)</label><input id="fix-bulk-root" placeholder="ریشهٔ ایراد"></div>
+      <div class="field" style="flex:1;min-width:200px"><label>قطعه برای ردیف‌های انتخاب‌شده (اختیاری)</label><input id="fix-bulk-part" list="fix-bulk-parts" placeholder="مثلاً LCD"></div>
+      <datalist id="fix-bulk-parts">${Array.from(new Set(DATA.warnings.map(x=>x.analysisPart).filter(Boolean))).sort().map(v=>`<option value="${esc(v)}"></option>`).join("")}</datalist>
+      <button class="btn primary" id="fix-bulk-apply" disabled>ثبت برای انتخاب‌شده‌ها</button>
+      <span class="muted tiny" id="fix-bulk-count">هیچ ردیفی انتخاب نشده</span>
+    </div>
+    <div class="table-wrap" style="max-height:440px"><table class="fix-table"><thead><tr>
+      <th style="width:32px"><input type="checkbox" id="fix-check-all" title="انتخاب همه"></th>
+      <th>سریال</th><th>شرح قطعه</th><th>ریشهٔ فعلی</th><th>قطعهٔ تحلیل</th><th>اقدام</th></tr></thead>
+      <tbody>${list.length?list.map(r=>{
+        const fix=fixOf(r);
+        const rootNow=fix.root||r.rootCause||"اعلام نشده";
+        const partNow=fix.part||r.analysisPart||"—";
+        return `<tr data-fix-row="${r.id}">
+          <td><input type="checkbox" class="fix-check" data-fix-check="${r.id}"></td>
+          <td class="num">${esc(faDigits(r.id))}</td>
+          <td class="tiny" title="${esc(r.defect||"")}">${esc(shorten(r.part,40))}</td>
+          <td class="tiny">${fix.root?`<span class="badge green">${esc(rootNow)}</span>`:`<span class="muted">${esc(rootNow)}</span>`}</td>
+          <td class="tiny">${fix.part?`<span class="badge green">${esc(partNow)}</span>`:`<span class="muted">${esc(partNow)}</span>`}</td>
+          <td><button class="btn sm" data-fix-edit="${r.id}">اصلاح</button></td></tr>`;
+      }).join(""):`<tr><td colspan="6" class="muted" style="text-align:center;padding:18px">ردیفی با این صافی نیست</td></tr>`}</tbody></table></div>`;
+  $$("[data-fix-tab]").forEach(btn=>btn.addEventListener("click",()=>openFixBrowser(btn.dataset.fixTab,$("#fix-search")?$("#fix-search").value:"")));
+  const search=$("#fix-search");
+  if(search) search.addEventListener("input",()=>{
+    clearTimeout(search._t);
+    search._t=setTimeout(()=>{ const value=search.value; openFixBrowser(mode,value); const next=$("#fix-search"); next.focus(); next.setSelectionRange(value.length,value.length); },200);
+  });
+  $$("[data-fix-edit]").forEach(btn=>btn.addEventListener("click",()=>openFixEditor(Number(btn.dataset.fixEdit))));
+
+  /* ورود گروهی قطعه برای ردیف‌هایی که تحلیل‌شان قطعه ندارد */
+  const checks=$$("[data-fix-check]");
+  const bulkBtn=$("#fix-bulk-apply"), bulkCount=$("#fix-bulk-count"), bulkInput=$("#fix-bulk-part");
+  const selected=()=>checks.filter(c=>c.checked).map(c=>Number(c.dataset.fixCheck));
+  const syncBulk=()=>{
+    const n=selected().length;
+    if(bulkCount) bulkCount.textContent=n?`${fmt(n)} ردیف انتخاب شده`:"هیچ ردیفی انتخاب نشده";
+    if(bulkBtn) bulkBtn.disabled=!n;
+  };
+  checks.forEach(c=>c.addEventListener("change",syncBulk));
+  const all=$("#fix-check-all");
+  if(all) all.addEventListener("change",()=>{ checks.forEach(c=>c.checked=all.checked); syncBulk(); });
+  if(bulkBtn) bulkBtn.addEventListener("click",async ()=>{
+    const value=(bulkInput.value||"").trim(), root=($("#fix-bulk-root").value||"").trim();
+    if(!value && !root){ toast("ریشه یا قطعه را بنویسید"); return; }
+    const values={}; if(value) values.part=value; if(root) values.root=root;
+    const ids=selected();
+    bulkBtn.disabled=true; bulkBtn.textContent="در حال ذخیره…";
+    const result=await FIX_STORE.save(ids,values);
+    bulkBtn.textContent="ثبت برای انتخاب‌شده‌ها"; bulkBtn.disabled=false;
+    if(!result.ok){ toast(result.error||"ذخیره نشد"); return; }
+    toast(`${fmt(ids.length)} ردیف ذخیره شد؛ گزارش در حال بازسازی است`);
+    openFixBrowser(mode,query);
+  });
+  syncBulk();
+}
+
+function openFixEditor(id){
+  const r=DATA.warnings.find(x=>x.id===id); if(!r) return;
+  const fix=fixOf(r);
+  const roots=Array.from(new Set(DATA.warnings.map(x=>x.rootCause).filter(Boolean).filter(v=>!isHiddenRoot(v))))
+    .concat((typeof FIX_ROOTS!=="undefined"&&Array.isArray(FIX_ROOTS))?FIX_ROOTS:[])
+    .filter((v,i,arr)=>arr.indexOf(v)===i).sort((a,b)=>a.localeCompare(b,"fa"));
+  const parts=Array.from(new Set(DATA.warnings.map(x=>x.analysisPart).filter(Boolean))).sort((a,b)=>a.localeCompare(b,"fa"));
+  $("#modal").classList.remove("hidden");
+  $("#modal-title").textContent=`ثبت و اصلاح ریشه و قطعه · اخطار ${faDigits(r.id)}`;
+  $("#modal-body").innerHTML=`
+    ${FIX_STORE.mode!=="server"?'<div class="fix-intro">برای ذخیره داخل برنامه، آن را با serve.bat یا serve.py اجرا کنید. نیازی به اکسل یا بارگذاری فایل نیست.</div>':''}
+    <div class="fix-head">
+      <div><div class="fix-serial">${esc(faDigits(r.id))}</div>
+        <div class="fix-defect">${esc(r.defect||r.part||"—")}</div>
+        <div class="muted tiny">${esc(r.part)} · ${esc(r.product||"—")} · ${esc(faDigits(r.date))}</div></div>
+      <div class="muted tiny">ریشهٔ خودکار: <b>${esc(r.autoRoot||"اعلام نشده")}</b><br>قطعهٔ خودکار: <b>${esc(r.autoPart||"—")}</b></div>
+    </div>
+    <div class="fix-form">
+      <div class="field"><label>ریشهٔ ایراد</label>
+        <input id="fix-root" list="fix-root-options" value="${esc(fix.root||r.autoRoot||"")}" placeholder="مثلاً نرم‌افزار، سیم و سوکت، اتصالی…">
+        <datalist id="fix-root-options">${roots.map(v=>`<option value="${esc(v)}"></option>`).join("")}</datalist>
+      </div>
+      <div class="field"><label>قطعهٔ تحلیل</label>
+        <input id="fix-part" list="fix-part-options" value="${esc(fix.part||r.autoPart||"")}" placeholder="مثلاً LCD، کانکتور، میکرو…">
+        <datalist id="fix-part-options">${parts.map(v=>`<option value="${esc(v)}"></option>`).join("")}</datalist>
+      </div>
+      <div class="field"><label>واحد مسئول (اختیاری)</label>
+        <select id="fix-process"><option value="">مقدار خودکار: ${esc(r.autoProcess||"نامشخص")}</option>
+          ${["تولید","مواد اولیه","تامین‌کننده","طراحی مهندسی","مشتری"].map(v=>`<option value="${esc(v)}" ${fix.process===v?"selected":""}>${esc(v)}</option>`).join("")}
+        </select></div>
+      <div class="fix-hint muted tiny">با خالی کردن کادر، اصلاح آن حذف و مقدار خودکار بازگردانده می‌شود. واحد مسئول فقط با انتخاب شما تغییر می‌کند.</div>
+      <div class="fix-actions">
+        <button class="btn primary" id="fix-save">ذخیره و ساخت گزارش</button>
+        <button class="btn" id="fix-back">بازگشت به فهرست</button>
+      </div>
+    </div>`;
+  $("#fix-back").addEventListener("click",()=>{ openFixPicker(); });
+  $("#modal-foot").innerHTML=`<button class="btn" id="fix-editor-close">بستن</button>`;
+  $("#fix-editor-close").addEventListener("click",()=>$("#modal").classList.add("hidden"));
+  const initialRoot=$("#fix-root").value, initialPart=$("#fix-part").value, initialProcess=$("#fix-process").value;
+  $("#fix-save").addEventListener("click",async ()=>{
+    const btn=$("#fix-save");
+    const values={};
+    if($("#fix-root").value!==initialRoot) values.root=$("#fix-root").value;
+    if($("#fix-part").value!==initialPart) values.part=$("#fix-part").value;
+    if($("#fix-process").value!==initialProcess) values.process=$("#fix-process").value;
+    if(!Object.keys(values).length){ toast("تغییری برای ذخیره وجود ندارد"); return; }
+    btn.disabled=true; btn.textContent="در حال ذخیره…";
+    const result=await FIX_STORE.save(id,values);
+    if(!result.ok){ btn.disabled=false; btn.textContent="ذخیره و ساخت گزارش"; toast(result.error||"ذخیره نشد"); return; }
+    toast("ذخیره شد؛ گزارش در حال بازسازی است");
+    openFixPicker();
+  });
+}
+
 function toast(message){
   let el=$("#toast");
   if(!el){ el=document.createElement("div"); el.id="toast"; el.className="toast"; document.body.appendChild(el); }
@@ -2565,8 +2821,9 @@ function summaryPanelHtml(r){
         ${wmRow("ایراد مشتری", `<b>${esc(r.defect||"—")}</b>${r.defectSrc?`<span class="wm-tag ${r.defectSrc.indexOf("الگوی دستی")===0?"manual":""}">${esc(r.defectSrc)}</span>`:""}`)}
         ${wmRow("دسته‌بندی", `${defectCatBadge(r.defectCat)||'<span class="muted tiny">ثبت نشده</span>'}`)}
         ${wmRow("گروه فنی", esc(r.defectGroup))}
-        ${wmRow("ریشهٔ ایراد", r.rootCause&&!isHiddenRoot(r.rootCause)?`<b>${esc(r.rootCause)}</b>`:`<span class="muted">${r.rootCause==="عدم دریافت قطعه"?"قطعه دریافت نشده":"در متن اخطار علتی ذکر نشده"}</span>`)}
+        ${wmRow("ریشهٔ ایراد", `${r.rootCause&&!isHiddenRoot(r.rootCause)?`<b>${esc(r.rootCause)}</b>`:`<span class="muted">${r.rootCause==="عدم دریافت قطعه"?"قطعه دریافت نشده":"در متن اخطار علتی ذکر نشده"}</span>`}${r.manualFix?' <span class="badge green">اصلاح دستی</span>':""}`)}
         ${wmRow("قطعه در تحلیل", r.analysisPart?`<b>${esc(r.analysisPart)}</b> <span class="muted tiny">(از آنالیز علت)</span>`:`<span class="muted">در تحلیل نام برده نشده</span>`)}
+        ${wmRow("اصلاح", `<button class="btn sm" data-wm-fix="${r.id}">✎ اصلاح ریشه / قطعه</button>`)}
         ${wmRow("تکرار در محصول", r.defectRepeat>1?`<span class="badge red">${fmt(r.defectRepeat)} بار در این محصول</span>`:"۱ بار")}
         ${wmRow("نوع / شرح خطا", `${esc(r.type||"—")} · ${esc(r.error||"—")}`)}
         ${wmRow("خودرو", `${esc(r.car||"—")}${r.make?` · ${esc(r.make)}`:""}`)}
@@ -2704,6 +2961,7 @@ function openWarning(id, panel){
     <div class="wm-panel" data-wm-panel="form">${formPanelHtml(r)}</div>`;
   $$("#modal-body .wm-tab").forEach(btn=>btn.addEventListener("click",()=>wmShowPanel(btn.dataset.wm)));
   $$("#modal-body [data-wm-jump]").forEach(btn=>btn.addEventListener("click",()=>wmShowPanel(btn.dataset.wmJump)));
+  $$("#modal-body [data-wm-fix]").forEach(btn=>btn.addEventListener("click",async ()=>{ await FIX_READY; openFixEditor(Number(btn.dataset.wmFix)); }));
   renderModalFooter(r);
   $("#modal").classList.remove("hidden");
   wmShowPanel(panel||"summary");
@@ -2760,7 +3018,60 @@ function refreshMonthSelects(){
   if(!toEl.value) state.to="";
 }
 
+/* ردیف همیشگی نوار فیلتر: جستجو + «قطعه» + دکمهٔ باز/بستن فیلترهای بیشتر.
+   «قطعه» با تایپ فیلتر می‌شود (شرح قطعه/قطعهٔ تحلیل/شماره فنی) و فهرست
+   پیشنهادها از دادهٔ همین گزارش ساخته می‌شود. */
+function renderFiltersTop(){
+  const el=$("#filters-top"); if(!el) return;
+  const parts=new Map();
+  DATA.warnings.forEach(r=>{
+    const name=(r.part||"").trim();
+    if(!name) return;
+    parts.set(name,(parts.get(name)||0)+1);
+  });
+  const list=Array.from(parts.entries()).sort((a,b)=>b[1]-a[1]).slice(0,400);
+  el.innerHTML=`<div class="field f-q"><label>جستجو (شرح قطعه، شماره فنی، محصول، سریال)</label>
+      <input id="f-q" placeholder="مثلاً NBCM یا جلوآمپر یا IK01750880"></div>
+    <div class="field f-part"><label>قطعه</label>
+      <input id="f-part" list="part-options" placeholder="نام قطعه یا بخشی از آن…" autocomplete="off">
+      <datalist id="part-options">${list.map(([name,count])=>`<option value="${esc(name)}">${fmt(count)} اخطار</option>`).join("")}</datalist>
+    </div>
+    <div class="fchips-bar" id="filters-chips"></div>`;
+  const q=$("#f-q"), part=$("#f-part");
+  let timer=null;
+  q.addEventListener("input",e=>{clearTimeout(timer);timer=setTimeout(()=>{state.q=e.target.value;state.page=1;render();},180);});
+  let partTimer=null;
+  part.addEventListener("input",e=>{
+    clearTimeout(partTimer);
+    const value=e.target.value;
+    partTimer=setTimeout(()=>{
+      state.part=value.trim();
+      state.page=1;
+      if(state.tab!=="warnings"){ switchTab("warnings"); }
+      render();
+    },170);
+  });
+  part.addEventListener("change",e=>{ if(e.target.value!==state.part){ state.part=e.target.value.trim(); state.page=1; render(); } });
+}
+function syncFiltersTop(){
+  if(!$("#filters-chips")) renderFiltersTop();
+  const q=$("#f-q"); if(q && document.activeElement!==q) q.value=state.q||"";
+  const part=$("#f-part"); if(part && document.activeElement!==part) part.value=state.part||"";
+  const bar=$("#filters-chips");
+  if(bar){
+    const chips=[];
+    if(state.part) chips.push(`<span class="fchip">قطعه: ${esc(state.part)}<button data-fclear="part" title="حذف فیلتر">×</button></span>`);
+    if(state.q) chips.push(`<span class="fchip">جستجو: ${esc(state.q)}<button data-fclear="q" title="حذف فیلتر">×</button></span>`);
+    bar.innerHTML=chips.join("");
+    $$("#filters-chips [data-fclear]").forEach(btn=>btn.addEventListener("click",()=>{
+      state[btn.dataset.fclear]=""; state.page=1; syncFiltersTop(); render();
+    }));
+  }
+}
 function initFilters(){
+  renderFiltersTop();
+  // اصلاح‌های ثبت‌شدهٔ کاربر از سرور خوانده شود تا فرم‌ها مقدار درست را نشان دهند
+  FIX_READY=FIX_STORE.init();
   const groups=Array.from(new Set(DATA.warnings.map(r=>r.group))).sort();
   const cars=Array.from(new Set(DATA.warnings.map(r=>r.car))).sort();
   const grades=Array.from(new Set(DATA.warnings.map(r=>r.grade).filter(Boolean))).sort();
@@ -2804,10 +3115,8 @@ function initFilters(){
   });
   $("#f-from").addEventListener("change",e=>{state.from=e.target.value;state.page=1;setTrendMode("month");render();});
   $("#f-to").addEventListener("change",e=>{state.to=e.target.value;state.page=1;setTrendMode("month");render();});
-  let timer=null;
-  $("#f-q").addEventListener("input",e=>{clearTimeout(timer);timer=setTimeout(()=>{state.q=e.target.value;state.page=1;render();},180);});
   $("#reset").addEventListener("click",()=>{
-    Object.assign(state,{group:"",family:"",product:"",branch:"",defect:"",root:"",rootPart:"",quickFilter:"",car:"",grade:"",status:"",priority:"",year:"",from:"",to:"",q:"",review:"",productQ:"",warningQ:"",reviewQ:"",defectQ:"",formQ:"",formStatus:"",page:1,warningSort:"priority"});
+    Object.assign(state,{group:"",family:"",product:"",branch:"",defect:"",root:"",rootPart:"",quickFilter:"",car:"",grade:"",status:"",priority:"",year:"",from:"",to:"",q:"",m6:"",make:"",process:"",part:"",review:"",productQ:"",warningQ:"",reviewQ:"",defectQ:"",formQ:"",formStatus:"",page:1,warningSort:"priority"});
     $("#f-q").value=""; $("#product-search").value=""; $("#warning-search").value=""; $("#review-search").value="";
     $("#defect-search").value=""; $("#form-search").value=""; $("#pareto-search").value=""; state.paretoQ=""; $("#form-status-filter").value=""; $("#f-branch").value=""; $("#form-scope").value="working";
     syncSelects(); refreshMonthSelects();
@@ -2815,6 +3124,7 @@ function initFilters(){
     render();
   });
   $("#export").addEventListener("click",exportCsv);
+  $("#fix-open").addEventListener("click",async ()=>{ await FIX_READY; openFixPicker(); });
   $("#print").addEventListener("click",()=>window.print());
   $("#page-size").addEventListener("change",e=>{state.pageSize=Number(e.target.value);state.page=1;render();});
   $("#product-search").addEventListener("input",e=>{state.productQ=e.target.value;state.page=1;renderProductsTab(applyFilters());});
@@ -2879,6 +3189,7 @@ function switchTab(tab){
 function render(){
   const rows=applyFilters();
   syncSelects();
+  syncFiltersTop();
   renderCoverage(rows);
   renderRootPanel(rows);
   renderPareto(rows);
