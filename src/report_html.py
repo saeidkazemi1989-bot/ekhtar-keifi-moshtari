@@ -46,6 +46,42 @@ def _review_link_stats(enriched: pd.DataFrame, unmatched: pd.DataFrame | None) -
     }
 
 
+STATUS_CLOSED = "خاتمه‌یافته"
+STATUS_IN_REVIEW = "در حال بررسی"
+STATUS_NOT_RECEIVED = "عدم دریافت قطعه"
+
+
+def add_status_group(enriched: pd.DataFrame) -> pd.DataFrame:
+    """گروه وضعیت یکتا برای هر اخطار؛ سه گروه، افراز کامل.
+
+    * «عدم دریافت قطعه»: «آنالیز علت ایراد» برگهٔ بررسی این عبارت را دارد.
+    * «در حال بررسی»: برگهٔ بررسی دارد ولی «منشاء ایراد» (ریشهٔ فرآیندی) ثبت نشده،
+      یا اخطارِ بازی است که هنوز برگهٔ بررسی ندارد.
+    * «خاتمه‌یافته»: بقیه.
+
+    جمع این سه همیشه برابر تعداد اخطارهاست و در داشبورد و اکسل همین ستون مبناست.
+    """
+    frame = enriched.copy()
+    cause = frame.get("آنالیز علت ایراد", pd.Series([""] * len(frame), index=frame.index))
+    cause = cause.fillna("").astype(str).str.replace("ي", "ی", regex=False)
+    not_received = cause.str.contains("عدم دریافت قطعه", regex=False)
+    has_review = (frame["دارای برگه بررسی"] == "بله") if "دارای برگه بررسی" in frame else pd.Series(False, index=frame.index)
+    origin = frame.get("منشاء ایراد", pd.Series([""] * len(frame), index=frame.index)).fillna("").astype(str)
+    has_root = origin.map(lambda v: _process_bucket(v) != PROCESS_UNKNOWN)
+    is_open = frame["وضعیت اخطار"] != "خاتمه يافته"
+    in_review = ~not_received & ((has_review & ~has_root) | is_open)
+    closed = ~not_received & ~in_review
+    frame["گروه وضعیت"] = [
+        STATUS_NOT_RECEIVED if a else (STATUS_IN_REVIEW if b else STATUS_CLOSED)
+        for a, b in zip(not_received, in_review)
+    ]
+    frame["ریشهٔ فرآیندی ثبت شده"] = has_root.map(lambda v: "بله" if v else "خیر")
+    frame["_closed"] = closed
+    frame["_in_review"] = in_review
+    frame["_not_received"] = not_received
+    return frame
+
+
 def _process_bucket(value: object) -> str:
     """فرآیند مسئول از ستون «منشاء ایراد»؛ چیزی حدس زده نمی‌شود."""
     text = _clean_text(value).replace("ي", "ی").replace("ك", "ک")
@@ -142,6 +178,8 @@ def _payload(
                 "action": _clean_text(row.get("شرح اقدام اصلاحی", "")),
                 "reviewOrigin": _clean_text(row.get("منشاء ایراد", "")),
                 "process": _process_bucket(row.get("منشاء ایراد", "")),
+                "statusGroup": _clean_text(row.get("گروه وضعیت", "")),
+                "hasRoot": row.get("ریشهٔ فرآیندی ثبت شده", "خیر") == "بله",
                 "claimNo": _clean_text(row.get("شماره کلیم", "")),
                 "orangeCard": _clean_text(row.get("شماره کارت نارنجی", "")),
                 "reviewCategory": _clean_text(row.get("دسته محصول (بررسی)", "")),
@@ -272,6 +310,8 @@ def build_html(
     source_names = source_names or {}
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    if "گروه وضعیت" not in enriched.columns:
+        enriched = add_status_group(enriched)
     data = _payload(enriched, source_names, checks, unmatched, entries, status_stats)
     payload = json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
 
@@ -1172,22 +1212,22 @@ function renderKpis(rows){
   const vs = (cur,prev,invert)=> (curYear && prevRows.length)
     ? `<div class="vs">${deltaHtml(cur,prev,invert)} <span class="muted">نسبت به ${faDigits(curYear-1)}</span></div>` : "";
   const vsRows = (pred)=> vs(curRows.filter(pred).length, prevRows.filter(pred).length, true);
-  const notReceived=rows.filter(isNotReceived).length;
+  const sc=statusCounts(rows);
   const gap=Number((DATA.meta.review||{}).rows||0);
   const cards=[
     ["اخطارهای کیفی",fmt(total),curYear?`سال ${faDigits(curYear)}: ${fmt(curRows.length)}`:"ردیف انتخاب‌شده","", vs(curRows.length, prevRows.length, true)],
     ["قطعات معیوب",fmt(qty),curYear?`سال ${faDigits(curYear)}: ${fmt(sum(curRows,"qty"))}`:"جمع تعداد قطعات","blue", vs(sum(curRows,"qty"), sum(prevRows,"qty"), true)],
-    ["اخطارهای باز",fmt(open),pct(total?open/total:0)+" از کل · هر وضعیتی جز خاتمه‌یافته","slate", vsRows(r=>r.open)],
-    ["خاتمه‌یافته",fmt(total-open),pct(total?(total-open)/total:0)+" از کل","teal", vsRows(r=>!r.open)],
-    ["عدم دریافت قطعه",fmt(notReceived),gap?`${fmt(gap)} ردیف C-Plus بدون اخطار متناظر (اختلاف دو فایل)`:"از «آنالیز علت ایراد» برگهٔ بررسی","violet", vsRows(isNotReceived)]
+    ["خاتمه‌یافته",fmt(sc.closed),pct(total?sc.closed/total:0)+" از کل","teal", vsRows(isClosed)],
+    ["در حال بررسی",fmt(sc.inReview),pct(total?sc.inReview/total:0)+" از کل · بدون ریشهٔ ثبت‌شده","slate", vsRows(isInReview)],
+    ["عدم دریافت قطعه",fmt(sc.notReceived),gap?`${fmt(gap)} ردیف C-Plus بدون اخطار متناظر (اختلاف دو فایل)`:"از «آنالیز علت ایراد» برگهٔ بررسی","violet", vsRows(isNotReceived)]
   ];
   $("#kpis").innerHTML=cards.map(([l,v,s,c,extra],i)=>`<div class="kpi ${c}" data-kpi="${i}" role="button" tabindex="0" title="نمایش ریزش اطلاعات"><div class="label">${l}</div><div class="value">${v}</div><div class="sub">${s}</div>${extra||""}</div>`).join("");
   const drills=[
     ["همهٔ اخطارهای فیلترشده","مبنای گزارش؛ با فیلترهای بالای صفحه هماهنگ است",rows,()=>{state.quickFilter="";}],
     ["قطعات معیوب","جمع تعداد قطعات معیوب همین ردیف‌ها",rows,()=>{state.quickFilter="";}],
-    ["اخطارهای باز",`${fmt(open)} اخطار باز در فیلتر فعلی`,rows.filter(r=>r.open),()=>{state.status="open";state.quickFilter="";}],
-    ["خاتمه‌یافته",`${fmt(total-open)} اخطار خاتمه‌یافته در فیلتر فعلی`,rows.filter(r=>!r.open),()=>{state.status="closed";state.quickFilter="";}],
-    ["عدم دریافت قطعه",`${fmt(notReceived)} اخطار با «عدم دریافت قطعه» در آنالیز علت ایراد`,rows.filter(isNotReceived),()=>{state.quickFilter="notreceived";state.status="";}]
+    ["خاتمه‌یافته",`${fmt(sc.closed)} اخطار خاتمه‌یافته در فیلتر فعلی`,rows.filter(isClosed),()=>{state.quickFilter="";}],
+    ["در حال بررسی",`${fmt(sc.inReview)} اخطار در حال بررسی در فیلتر فعلی`,rows.filter(isInReview),()=>{state.quickFilter="";}],
+    ["عدم دریافت قطعه",`${fmt(sc.notReceived)} اخطار با «عدم دریافت قطعه» در آنالیز علت ایراد`,rows.filter(isNotReceived),()=>{state.quickFilter="notreceived";state.status="";}]
   ];
   $$("#kpis [data-kpi]").forEach(card=>{
     const [title,sub,list,apply]=drills[Number(card.dataset.kpi)];
@@ -1204,20 +1244,42 @@ function rootText(r){
 }
 /* «عدم دریافت قطعه»: اخطاری که در برگهٔ بررسی «آنالیز علت ایراد» آن
    «عدم دریافت قطعه» ثبت شده است (مبنای فایل C-Plus). */
-const isNotReceived=r=>(r.cause||"").replace(/ي/g,"ی").indexOf("عدم دریافت قطعه")>=0;
+const isNotReceived=r=>r.statusGroup?r.statusGroup==="عدم دریافت قطعه":(r.cause||"").replace(/ي/g,"ی").indexOf("عدم دریافت قطعه")>=0;
+/* سه گروه وضعیت، افراز کامل و بدون هم‌پوشانی:
+   خاتمه‌یافته + عدم دریافت قطعه + در حال بررسی = کل اخطارها.
+   «در حال بررسی» = برگهٔ بررسی دارد ولی «منشاء ایراد» (ریشهٔ فرآیندی) در آن
+   ثبت نشده، یا اخطارِ بازی است که هنوز برگهٔ بررسی ندارد. */
+const hasRootCause=r=>r.hasRoot===true || !!(r.process && r.process!=="نامشخص");
+const PROC_ORDER=["تولید","مواد اولیه","تامین‌کننده","طراحی مهندسی","مشتری"];
+/* میله‌های «واحد مسئول»: جمع همه = تعداد اخطارها (هیچ ردیفی گم نمی‌شود) */
+function makeProcessItems(rows){
+  const items=PROC_ORDER.map(name=>({name,warnings:rows.filter(r=>hasRootCause(r)&&!isNotReceived(r)&&r.process===name).length}));
+  items.push({name:"عدم دریافت قطعه",warnings:rows.filter(isNotReceived).length});
+  // بقیهٔ ردیف‌ها: نه ریشهٔ ثبت‌شده دارند نه منشاء ایراد → «در حال بررسی»
+  const known=PROC_ORDER.reduce((a,name)=>a+rows.filter(r=>hasRootCause(r)&&!isNotReceived(r)&&r.process===name).length,0);
+  items.push({name:"در حال بررسی",warnings:rows.length-known-rows.filter(isNotReceived).length});
+  return items.filter(i=>i.warnings>0);
+}
+const isInReview=r=>r.statusGroup?r.statusGroup==="در حال بررسی":!isNotReceived(r)&&((r.hasReview&&!hasRootCause(r))||!!r.open);
+const isClosed=r=>r.statusGroup?r.statusGroup==="خاتمه‌یافته":(!isNotReceived(r)&&!isInReview(r));
+const STATUS_GROUPS=["خاتمه‌یافته","در حال بررسی","عدم دریافت قطعه"];
+const statusOf=r=>isNotReceived(r)?"عدم دریافت قطعه":(isInReview(r)?"در حال بررسی":"خاتمه‌یافته");
+const statusCounts=rows=>({
+  closed:rows.filter(isClosed).length,
+  inReview:rows.filter(isInReview).length,
+  notReceived:rows.filter(isNotReceived).length
+});
 function renderCoverage(rows){
   const el=$("#coverage-strip"); if(!el) return;
   const total=rows.length;
-  const open=rows.filter(r=>r.open).length;
-  const closed=rows.filter(r=>!r.open).length;
-  const notReceived=rows.filter(isNotReceived).length;
+  const sc=statusCounts(rows);
   const unknown=rows.filter(r=>r.rootCause==="اعلام نشده").length;
   const base=total||1;
   const items=[
     ["کل اخطارها",total,"مبنای همهٔ درصدها","#0b64c8",()=>rows,null],
-    ["باز",open,pct(open/base)+" از کل","#d92d5c",()=>rows.filter(r=>r.open),()=>{state.status="open";state.quickFilter="";}],
-    ["خاتمه‌یافته",closed,pct(closed/base)+" از کل","#0f9f8f",()=>rows.filter(r=>!r.open),()=>{state.status="closed";state.quickFilter="";}],
-    ["عدم دریافت قطعه",notReceived,"از برگهٔ بررسی (C-Plus)","#7c3aed",()=>rows.filter(isNotReceived),()=>{state.status="";state.quickFilter="notreceived";}]
+    ["خاتمه‌یافته",sc.closed,pct(sc.closed/base)+" از کل","#0f9f8f",()=>rows.filter(isClosed),()=>{state.status="closed";state.quickFilter="";}],
+    ["در حال بررسی",sc.inReview,pct(sc.inReview/base)+" از کل · ریشهٔ ثبت‌نشده","#c47f0a",()=>rows.filter(isInReview),()=>{state.status="";state.quickFilter="";}],
+    ["عدم دریافت قطعه",sc.notReceived,pct(sc.notReceived/base)+" از کل · از C-Plus","#7c3aed",()=>rows.filter(isNotReceived),()=>{state.status="";state.quickFilter="notreceived";}]
   ];
   el.innerHTML=items.map(([k,v,sub,color],index)=>`<div class="cov-item" data-cov="${index}" title="نمایش جزئیات ${esc(k)}">
     <div class="k"><span class="cdot" style="background:${color}"></span>${esc(k)}</div>
@@ -1230,7 +1292,7 @@ function renderCoverage(rows){
   });
   const note=$("#coverage-note");
   if(note) note.innerHTML=unknown
-    ? `<b>${fmt(unknown)}</b> اخطار در متن خود علتی اعلام نکرده‌اند و در نمودار ریشه نمی‌آیند. «باز» = هر وضعیتی جز «خاتمه يافته» · «عدم دریافت قطعه» از ستون «آنالیز علت ایراد» برگهٔ بررسی (C-Plus) شمرده می‌شود. روی هر کارت بزنید تا فهرست و ریزش همان گروه باز شود.`
+    ? `سه گروه بدون هم‌پوشانی: <b>خاتمه‌یافته ${fmt(sc.closed)}</b> + <b>در حال بررسی ${fmt(sc.inReview)}</b> + <b>عدم دریافت قطعه ${fmt(sc.notReceived)}</b> = <b>${fmt(total)}</b> اخطار. «در حال بررسی» = برگهٔ بررسی دارد ولی «منشاء ایراد» (ریشهٔ فرآیندی) ثبت نشده، یا اخطارِ بازی است که برگهٔ بررسی ندارد. <span class="muted">(${fmt(unknown)} اخطار در متن خود علتی اعلام نکرده‌اند و در نمودار ریشه نمی‌آیند.)</span>`
     : `روی هر کارت بزنید تا فهرست و ریزش همان گروه باز شود.`;
 }
 function rootRows(rows){
@@ -1289,8 +1351,7 @@ function openBreakdown(title,subtitle,rows,opts){
   rows=rows||[];
   const box=$(".modal-box"); if(box) box.scrollTop=0;
   const total=rows.length;
-  const open=rows.filter(r=>r.open).length;
-  const notReceived=rows.filter(isNotReceived).length;
+  const sc=statusCounts(rows);
   const qty=sum(rows,"qty");
   const products=new Set(rows.map(r=>r.product)).size;
   const roots=rootRows(rows).filter(i=>!isHiddenRoot(i.name)).slice(0,7);
@@ -1307,7 +1368,7 @@ function openBreakdown(title,subtitle,rows,opts){
       <div class="drill-title">${esc(title)}</div>
       <div class="drill-sub">${esc(subtitle||"")}</div>
       <div class="drill-stats">
-        ${[["اخطار",fmt(total)],["باز",fmt(open)],["خاتمه‌یافته",fmt(total-open)],["عدم دریافت قطعه",fmt(notReceived)],["قطعه معیوب",fmt(qty)]]
+        ${[["اخطار",fmt(total)],["خاتمه‌یافته",fmt(sc.closed)],["در حال بررسی",fmt(sc.inReview)],["عدم دریافت قطعه",fmt(sc.notReceived)],["قطعه معیوب",fmt(qty)]]
           .map(([l,v])=>`<div class="drill-stat"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("")}
       </div>
     </div>
@@ -1318,9 +1379,9 @@ function openBreakdown(title,subtitle,rows,opts){
     <div class="drill-grid">
       <div class="drill-card"><h4>پرتکرارترین ایراد مشتری</h4>${drillBars(defects,"#d92d5c")}</div>
       <div class="drill-card"><h4>وضعیت اخطارها</h4>${drillBars([
-        {name:"خاتمه‌یافته",warnings:total-open},
-        {name:"باز",warnings:open},
-        {name:"عدم دریافت قطعه",warnings:notReceived}
+        {name:"خاتمه‌یافته",warnings:sc.closed},
+        {name:"در حال بررسی",warnings:sc.inReview},
+        {name:"عدم دریافت قطعه",warnings:sc.notReceived}
       ].filter(i=>i.warnings>0),"#7c3aed")}</div>
     </div>
     <div class="drill-card">
@@ -1420,19 +1481,19 @@ function openGroupDrill(name,cfg){
   const base=applyFilters();
   const field=cfg.field||"m6";
   const value=cfg.value||name;
-  const match=r=>(r[field]||"نامشخص")===value;
+  const virtual={inreview:isInReview,notreceived:isNotReceived,noreview:r=>!r.hasReview};
+  const match=virtual[field]?virtual[field]:r=>(r[field]||"نامشخص")===value;
   const rows=base.filter(match);
-  const open=rows.filter(r=>r.open).length;
-  const notReceived=rows.filter(isNotReceived).length;
+  const sc=statusCounts(rows);
   const qty=sum(rows,"qty");
   const products=new Set(rows.map(r=>r.product)).size;
   const roots=rootRows(rows).filter(i=>!isHiddenRoot(i.name)).slice(0,7);
   const parts=paretoRows(rows.filter(r=>!!r.analysisPart)).slice(0,7);
   const defects=defectRows(rows).slice(0,7);
   const statusItems=[
-    {name:"خاتمه‌یافته",warnings:open===rows.length?0:rows.length-open},
-    {name:"باز",warnings:open},
-    {name:"عدم دریافت قطعه",warnings:notReceived}
+    {name:"خاتمه‌یافته",warnings:sc.closed},
+    {name:"در حال بررسی",warnings:sc.inReview},
+    {name:"عدم دریافت قطعه",warnings:sc.notReceived}
   ].filter(i=>i.warnings>0);
   const list=rows.slice().sort(byPriority).slice(0,40);
   $("#modal-title").textContent=cfg.title?`${cfg.title}: ${name}`:`ریزش اطلاعات: ${name}`;
@@ -1442,7 +1503,7 @@ function openGroupDrill(name,cfg){
       <div class="drill-title">${esc(name)}</div>
       <div class="drill-sub">${esc(cfg.subtitle||"")}${state.year?` · سال ${faDigits(state.year)}`:""}</div>
       <div class="drill-stats">
-        ${[["اخطار",fmt(rows.length)],["باز",fmt(open)],["خاتمه‌یافته",fmt(rows.length-open)],["عدم دریافت قطعه",fmt(notReceived)],["قطعه معیوب",fmt(qty)]]
+        ${[["اخطار",fmt(rows.length)],["خاتمه‌یافته",fmt(sc.closed)],["در حال بررسی",fmt(sc.inReview)],["عدم دریافت قطعه",fmt(sc.notReceived)],["قطعه معیوب",fmt(qty)]]
           .map(([l,v])=>`<div class="drill-stat"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("")}
       </div>
     </div>
@@ -1497,6 +1558,12 @@ const BAR_DRILL = {
           subtitle:"گروه ساخت (واحد سازنده/مسئول) همین اخطارها", apply:name=>{state.make=name;}},
   process:{title:"فرآیند مسئول", field:"process", kicker:"ریزش اطلاعات · فرآیند مسئول",
           subtitle:"از ستون «منشاء ایراد» برگهٔ بررسی (C-Plus)", apply:name=>{state.process=name;}},
+  inreview:{title:"در حال بررسی", field:"__status", kicker:"ریزش اطلاعات · در حال بررسی",
+          subtitle:"ریشهٔ ایراد (منشاء ایراد برگهٔ بررسی) برایشان ثبت نشده است"},
+  notreceived:{title:"عدم دریافت قطعه", field:"__status", kicker:"ریزش اطلاعات · عدم دریافت قطعه",
+          subtitle:"«آنالیز علت ایراد» برگهٔ بررسی = عدم دریافت قطعه"},
+  noreview:{title:"بدون برگهٔ بررسی", field:"__status", kicker:"ریزش اطلاعات · بدون برگهٔ بررسی",
+          subtitle:"این اخطارها در فایل C-Plus ردیف متناظر ندارند"},
   m6:    {title:"علت‌ها بر پایهٔ ۶M", field:"m6", kicker:"ریزش اطلاعات · ۶M",
           subtitle:"دستهٔ علت (مواد، روش، تجهیزات، نیروی انسانی، محیط، اندازه‌گیری) از برگهٔ بررسی",
           apply:name=>{state.m6=name;}}, 
@@ -1844,23 +1911,28 @@ function stageName(s){ return s==="خاتمه يافته" ? "خاتمه‌یاف
 
 function renderStatusDonut(el, rows){
   if(!rows.length){ empty(el); return; }
-  const closed = rows.filter(r=>!r.open).length;
-  const open = rows.length - closed;
+  const sc=statusCounts(rows);
   const total = rows.length || 1;
+  const groups=[
+    ["خاتمه‌یافته",sc.closed,"#0e7f9a"],
+    ["در حال بررسی",sc.inReview,"#c47f0a"],
+    ["عدم دریافت قطعه",sc.notReceived,"#d92d5c"]
+  ].filter(g=>g[1]>0);
   const size=190, r0=68, c=95, stroke=22, circ=2*Math.PI*r0;
-  const closedLen = circ*(closed/total);
-  const arcs = `<circle cx="${c}" cy="${c}" r="${r0}" fill="none" stroke="#0e7f9a" stroke-width="${stroke}" stroke-dasharray="${closedLen} ${circ-closedLen}" stroke-dashoffset="0" transform="rotate(-90 ${c} ${c})"><title>خاتمه‌یافته: ${fmt(closed)}</title></circle>
-    <circle cx="${c}" cy="${c}" r="${r0}" fill="none" stroke="#d92d5c" stroke-width="${stroke}" stroke-dasharray="${circ-closedLen} ${circ-(circ-closedLen)}" stroke-dashoffset="${-closedLen}" transform="rotate(-90 ${c} ${c})"><title>باز: ${fmt(open)}</title></circle>`;
-  const legend = [
-      ["خاتمه‌یافته",closed,"#0e7f9a"],
-      ["باز",open,"#d92d5c"]
-    ].map(([name,value,color])=>`<div class="legend-item" data-stage="${esc(name)}">
+  let offset=0;
+  const arcs=groups.map(([name,value,color])=>{
+    const len=circ*(value/total);
+    const seg=`<circle cx="${c}" cy="${c}" r="${r0}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-dasharray="${len} ${circ-len}" stroke-dashoffset="${-offset}" transform="rotate(-90 ${c} ${c})"><title>${esc(name)}: ${fmt(value)}</title></circle>`;
+    offset+=len;
+    return seg;
+  }).join("");
+  const legend = groups.map(([name,value,color])=>`<div class="legend-item" data-stage="${esc(name)}">
       <span class="dot" style="background:${color}"></span>
       <span class="name">${esc(name)}</span><span class="num">${fmt(value)} · ${pct(value/total)}</span></div>`).join("");
   el.innerHTML=`<div class="donut-wrap"><svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
     <circle cx="${c}" cy="${c}" r="${r0}" fill="none" stroke="#eef2f7" stroke-width="${stroke}"></circle>${arcs}
-    <text x="${c}" y="${c-4}" text-anchor="middle" font-size="20" font-weight="800" fill="#0f172a">${fmt(open)}</text>
-    <text x="${c}" y="${c+14}" text-anchor="middle" font-size="10" fill="#64748b">اخطار باز</text>
+    <text x="${c}" y="${c-4}" text-anchor="middle" font-size="20" font-weight="800" fill="#0f172a">${fmt(total)}</text>
+    <text x="${c}" y="${c+14}" text-anchor="middle" font-size="10" fill="#64748b">اخطار</text>
   </svg><div class="donut-legend">${legend}</div></div>`;
 }
 
@@ -1892,13 +1964,12 @@ function renderStatusDetail(rows){
   const el=$("#status-detail"), total=$("#status-total");
   if(!el) return;
   const n=rows.length||1;
-  const closed=rows.filter(r=>!r.open).length;
-  const open=rows.length-closed;
-  const notReceived=rows.filter(isNotReceived).length;
-  if(total) total.textContent=`${fmt(rows.length)} اخطار`;
+  const sc=statusCounts(rows);
+  const closed=sc.closed, inReview=sc.inReview, notReceived=sc.notReceived;
+  if(total) total.textContent=`${fmt(rows.length)} اخطار · ${fmt(closed)}+${fmt(inReview)}+${fmt(notReceived)}`;
   const items=[
     {name:"خاتمه‌یافته", value:closed, color:"#0e7f9a", hint:"رسیدگی تمام شده"},
-    {name:"باز", value:open, color:"#d92d5c", hint:"هر وضعیتی جز خاتمه‌یافته"},
+    {name:"در حال بررسی", value:inReview, color:"#c47f0a", hint:"ریشهٔ ایراد ثبت نشده"},
     {name:"عدم دریافت قطعه", value:notReceived, color:"#7c3aed", hint:"از برگهٔ بررسی"}
   ];
   const max=Math.max(1,...items.map(i=>i.value));
@@ -1911,9 +1982,9 @@ function renderStatusDetail(rows){
     const openIt=()=>{
       const key=row.dataset.status;
       const base=applyFilters();
-      if(key==="باز"){
-        openBreakdown("باز","همهٔ اخطارهایی که وضعیتشان «خاتمه يافته» نیست",base.filter(r=>r.open),
-          {apply:()=>{state.status="open";state.quickFilter="";state.page=1;}});
+      if(key==="در حال بررسی"){
+        openBreakdown("در حال بررسی","اخطارهایی که ریشهٔ ایراد (منشاء ایراد برگهٔ بررسی) برایشان ثبت نشده",base.filter(isInReview),
+          {apply:()=>{state.quickFilter="";state.page=1;}});
         return;
       }
       if(key==="عدم دریافت قطعه"){
@@ -1921,7 +1992,7 @@ function renderStatusDetail(rows){
           {apply:()=>{state.quickFilter="notreceived";state.page=1;}});
         return;
       }
-      openBreakdown("خاتمه‌یافته","اخطارهای رسیدگی‌شده",base.filter(r=>!r.open),
+      openBreakdown("خاتمه‌یافته","اخطارهای رسیدگی‌شده",base.filter(isClosed),
         {apply:()=>{state.quickFilter="";state.status="closed";state.page=1;}});
     };
     row.addEventListener("click",openIt);
@@ -2829,19 +2900,22 @@ function render(){
   };
   const defectItems=withPrev(groupAgg(rows,"defectGroup").sort((a,b)=>b.warnings-a.warnings).slice(0,8),"defectGroup");
   // «واحد مسئول» = فرآیند مسئول از ستون «منشاء ایراد» برگهٔ بررسی (C-Plus)
-  const PROC_ORDER=["تولید","مواد اولیه","تامین‌کننده","طراحی مهندسی","مشتری"];
-  const makeItems=PROC_ORDER
-    .map(name=>({name,warnings:rows.filter(r=>r.process===name).length}))
-    .filter(i=>i.warnings>0);
+  // هر ردیف دقیقاً در یک میله می‌افتد: فرآیندهای پنج‌گانه، سپس «در حال بررسی»
+  // (برگهٔ بررسی دارد ولی ریشه/منشاء ایراد ندارد) و «عدم دریافت قطعه».
+  const makeItems=makeProcessItems(rows);
   const m6Items=withPrev(groupAgg(rows.filter(r=>r.m6 && r.m6!=="نامشخص"),"m6").sort((a,b)=>b.warnings-a.warnings).slice(0,7),"m6");
   syncBarsCompareLegend();
   renderBars($("#ov-defect-bars"), defectItems, "warnings", ()=> "#d92d5c", null, barOpts("defect"));
-  renderBars($("#ov-make-bars"), makeItems, "warnings", ()=> "#0b64c8", null, barOpts("process"));
+  const PROC_COLORS={"تولید":"#0b64c8","مواد اولیه":"#0e7f9a","تامین‌کننده":"#7c3aed",
+    "طراحی مهندسی":"#1e4fd8","مشتری":"#0891b2","در حال بررسی":"#c47f0a",
+    "عدم دریافت قطعه":"#d92d5c","بدون برگهٔ بررسی":"#94a3b8"};
+  const procClick=name=>({inreview:"inreview",notreceived:"notreceived",noreview:"noreview"}[name]?barClick({inreview:"inreview",notreceived:"notreceived",noreview:"noreview"}[name]):barClick("process"))(name);
+  renderBars($("#ov-make-bars"), makeItems, "warnings", i=>PROC_COLORS[i.name]||"#0b64c8", null, {click:procClick, compare:state.barsCompare});
   const procNote=$("#ov-process-note");
   if(procNote){
-    const withProc=rows.filter(r=>r.process&&r.process!=="نامشخص").length;
-    const noReview=rows.filter(r=>!r.hasReview).length;
-    procNote.innerHTML=`${fmt(withProc)} از ${fmt(rows.length)} اخطار «منشاء ایراد» ثبت‌شده دارند · ${fmt(noReview)} اخطار بدون برگهٔ بررسی (نامشخص)`;
+    const parts=makeProcessItems(rows);
+    const sumParts=parts.reduce((a,i)=>a+i.warnings,0);
+    procNote.innerHTML=`جمع میله‌ها = ${fmt(sumParts)} = کل اخطارها · هر اخطار دقیقاً در یک گروه`;
   }
   renderM6Overview(rows, m6Items, barOpts("m6"));
   renderBars($("#family-bars"), withPrev(groupAgg(rows,"family").sort((a,b)=>b.warnings-a.warnings).slice(0,12),"family"), "warnings",

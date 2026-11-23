@@ -374,16 +374,15 @@ def build_excel(
     ws.sheet_view.rightToLeft = True
     row = _title(
         ws, 1, 6, "وضعیت اخطارهای کیفی",
-        "فقط دو گروه: «باز» = هر وضعیتی جز خاتمه يافته · «خاتمه‌یافته» = رسیدگی تمام‌شده؛ به‌علاوهٔ «عدم دریافت قطعه» از آنالیز علت ایراد برگهٔ بررسی (C-Plus)",
+        "سه گروه بدون هم‌پوشانی که جمعشان برابر تعداد اخطارهاست: «عدم دریافت قطعه» (آنالیز علت ایراد = عدم دریافت قطعه) + «در حال بررسی» (برگهٔ بررسی دارد ولی منشاء ایراد/ریشهٔ فرآیندی ثبت نشده، یا باز است بدون برگهٔ بررسی) + «خاتمه‌یافته» (بقیه)",
     )
-    is_open = enriched["وضعیت اخطار"] != "خاتمه يافته"
-    cause = enriched.get("آنالیز علت ایراد", pd.Series([""] * len(enriched), index=enriched.index)).fillna("").astype(str)
-    not_received = cause.str.contains("عدم دریافت قطعه", regex=False)
+    from .report_html import STATUS_CLOSED, STATUS_IN_REVIEW, STATUS_NOT_RECEIVED, add_status_group
+
+    status_frame = enriched if "گروه وضعیت" in enriched.columns else add_status_group(enriched)
+    groups = [STATUS_CLOSED, STATUS_IN_REVIEW, STATUS_NOT_RECEIVED]
+    counts = {name: int((status_frame["گروه وضعیت"] == name).sum()) for name in groups}
     status_rows = pd.DataFrame(
-        {
-            "وضعیت": ["باز", "خاتمه‌یافته", "عدم دریافت قطعه (از برگهٔ بررسی)"],
-            "تعداد اخطار": [int(is_open.sum()), int((~is_open).sum()), int(not_received.sum())],
-        }
+        {"وضعیت": groups + ["جمع سه گروه"], "تعداد اخطار": [counts[name] for name in groups] + [sum(counts.values())]}
     )
     status_rows["سهم"] = status_rows["تعداد اخطار"] / (len(enriched) or 1)
     sh, sl = _write_table(ws, status_rows, row, number_formats={"سهم": "0.0%"})
@@ -393,22 +392,34 @@ def build_excel(
     if "منشاء ایراد" in enriched.columns:
         from .report_html import PROCESS_RULES, PROCESS_UNKNOWN, _process_bucket
 
-        process_labels = enriched["منشاء ایراد"].map(_process_bucket)
+        process_labels = status_frame["منشاء ایراد"].map(_process_bucket)
         ordered = [name for name, _ in PROCESS_RULES]
+        grupo = status_frame["گروه وضعیت"]
+        # هر ردیف دقیقاً در یک سطر: پنج فرآیند، سپس «در حال بررسی» و «عدم دریافت قطعه»
+        # هر ردیف دقیقاً در یک سطر: فرآیندهای دارای ریشهٔ ثبت‌شده، سپس بقیه
+        # ردیف‌هایی که ریشه/برگهٔ بررسی ندارند («در حال بررسی») و عدم دریافت قطعه.
+        not_received_mask = grupo == STATUS_NOT_RECEIVED
+        has_root_mask = process_labels.isin(ordered) & ~not_received_mask
+        labels = []
+        for name in ordered:
+            labels.append((name, int(((process_labels == name) & has_root_mask).sum())))
+        labels.append((STATUS_NOT_RECEIVED, int(not_received_mask.sum())))
+        # بقیه: بدون ریشه/برگهٔ بررسی → «در حال بررسی»
+        rest = int(len(status_frame) - sum(count for _, count in labels))
+        labels.append((STATUS_IN_REVIEW, rest))
+        # جمع سطرها باید دقیقاً برابر کل اخطارها باشد
+        assert sum(count for _, count in labels) == len(status_frame), "جمع واحد مسئول با کل اخطارها نمی‌خواند"
         process_table = pd.DataFrame(
-            {
-                "فرآیند مسئول": ordered + [PROCESS_UNKNOWN],
-                "تعداد اخطار": [int((process_labels == name).sum()) for name in ordered]
-                + [int((process_labels == PROCESS_UNKNOWN).sum())],
-            }
+            {"واحد مسئول / وضعیت": [name for name, _ in labels], "تعداد اخطار": [count for _, count in labels]}
         )
         process_table = process_table[process_table["تعداد اخطار"] > 0]
         process_table["سهم"] = process_table["تعداد اخطار"] / (len(enriched) or 1)
+        process_table.loc[len(process_table)] = {"واحد مسئول / وضعیت": "جمع", "تعداد اخطار": int(process_table["تعداد اخطار"].sum()), "سهم": process_table["سهم"].sum()}
         ws = wb.create_sheet("واحد مسئول")
         ws.sheet_view.rightToLeft = True
         row = _title(
             ws, 1, 6, "واحد مسئول (فرآیند)",
-            "از ستون «منشاء ایراد» برگهٔ بررسی C-Plus: تولید (اپراتور/تجهیزات/روش/محیط) · مواد اولیه · تامین‌کننده · طراحی مهندسی · مشتری — «نامشخص» یعنی برگهٔ بررسی یا منشاء ایراد ثبت نشده",
+            "از ستون «منشاء ایراد» برگهٔ بررسی C-Plus: تولید (اپراتور/تجهیزات/روش/محیط) · مواد اولیه · تامین‌کننده · طراحی مهندسی · مشتری — ردیف‌های بدون ریشهٔ ثبت‌شده در «در حال بررسی» و ردیف‌های عدم دریافت قطعه جدا آمده‌اند؛ جمع ستون برابر کل اخطارهاست",
         )
         ph, pl = _write_table(ws, process_table, row, number_formats={"سهم": "0.0%"})
         _bar_from_table(ws, ph, pl, 1, 2, f"D{ph}", "اخطار به تفکیک فرآیند مسئول", width=22, height=10)
