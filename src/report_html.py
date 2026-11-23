@@ -423,6 +423,30 @@ main{padding:14px 18px 34px;max-width:1760px;margin:0 auto}
 .tab-panel.active{display:block;animation:fade .18s ease}
 @keyframes fade{from{opacity:.4;transform:translateY(3px)}to{opacity:1;transform:none}}
 .kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:12px}
+/* یک کارت واحد برای گزارش کلی؛ پنج کاشی هم‌اندازه، بدون فضای خالی */
+.ov-kpis{background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-sm);margin-bottom:12px;overflow:hidden}
+.ov-kpi-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0}
+.ov-kpi-grid .kpi{
+  border:0;border-radius:0;box-shadow:none;background:transparent;
+  border-inline-start:1px solid var(--line);padding:14px 16px 13px;min-height:104px;
+  display:flex;flex-direction:column;justify-content:flex-start;
+}
+.ov-kpi-grid .kpi:first-child{border-inline-start:0}
+.ov-kpi-grid .kpi:before{height:3px;inset-inline:0;border-radius:0}
+.ov-kpi-grid .kpi:hover{transform:none;background:#f7faff}
+.ov-kpi-grid .kpi .label{display:flex;align-items:center;gap:6px}
+.ov-kpi-grid .kpi .cdot{width:7px;height:7px;border-radius:50%;flex:none;display:inline-block}
+.ov-kpi-grid .kpi .sub{min-height:30px;line-height:1.6}
+.ov-kpi-grid .kpi .vs{min-height:18px}
+.ov-note{border-top:1px solid var(--line);padding:8px 16px;font-size:10.8px;color:var(--muted);background:#fbfcff;line-height:1.9}
+.ov-note b{color:#4b5b70}
+@media(max-width:1100px){.ov-kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .ov-kpi-grid .kpi:nth-child(3n+1){border-inline-start:0}
+  .ov-kpi-grid .kpi:nth-child(n+4){border-top:1px solid var(--line)}}
+@media(max-width:680px){.ov-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ov-kpi-grid .kpi{border-top:1px solid var(--line);border-inline-start:1px solid var(--line)}
+  .ov-kpi-grid .kpi:nth-child(odd){border-inline-start:0}
+  .ov-kpi-grid .kpi:nth-child(-n+2){border-top:0}}
 .kpi{
   background:#fff;border:1px solid var(--line);border-radius:10px;
   padding:12px 14px 11px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden;transition:transform .15s,box-shadow .2s;
@@ -499,7 +523,11 @@ main{padding:14px 18px 34px;max-width:1760px;margin:0 auto}
 @media(max-width:760px){.cmp{grid-template-columns:1fr}}
 @media(max-width:900px){.drill-stats{grid-template-columns:repeat(2,1fr)}.drill-grid{grid-template-columns:1fr}}
 /* شبکهٔ نمای کلی به سبک داشبورد مدیریتی */
-.ov-row{display:grid;gap:10px;margin-bottom:10px;align-items:start}
+.ov-row{display:grid;gap:10px;margin-bottom:10px;align-items:stretch}
+.ov-row>.card{display:flex;flex-direction:column;min-height:100%}
+.ov-row>.card>.bars,.ov-row>.card>.table-wrap{flex:1}
+.ov-row>.ov-col{display:grid;gap:10px;grid-auto-rows:1fr;min-height:100%}
+.ov-row>.ov-col>.card{display:flex;flex-direction:column;justify-content:flex-start}
 .ov-row-trend{grid-template-columns:minmax(0,2.55fr) minmax(300px,1fr)}
 .ov-row-four{grid-template-columns:repeat(4,minmax(0,1fr))}
 .ov-row-two{grid-template-columns:minmax(0,1fr) minmax(0,1.35fr)}
@@ -791,10 +819,9 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
 </div>
 <main>
   <section class="tab-panel active" id="tab-overview">
-    <div class="kpi-grid" id="kpis"></div>
-    <div class="cov-card">
-      <div class="cov-strip" id="coverage-strip"></div>
-      <div class="cov-note" id="coverage-note"></div>
+    <div class="ov-kpis" id="kpi-card">
+      <div class="ov-kpi-grid" id="kpis"></div>
+      <div class="ov-note" id="coverage-note"></div>
     </div>
 
     <!-- ردیف ۱: روند (مقایسه‌ای با سال قبل) + وضعیت + جزئیات وضعیت -->
@@ -1199,67 +1226,10 @@ function renderPriorityNote(){
     `<span class="muted tiny">مبنا: امروز ${faDigits(rule.today||"—")} · برای دیدن هر گروه از فیلتر «اولویت اخطار» استفاده کنید.</span>`;
 }
 
-function renderKpis(rows){
-  const total=rows.length, qty=sum(rows,"qty"), score=sum(rows,"score"), open=rows.filter(r=>r.open).length;
-  const auto=rows.filter(r=>r.autoClosed).length;
-
-  const reviewed=rows.filter(r=>r.hasReview).length;
-  // مقایسهٔ سال جاری با سال قبل؛ با فیلتر سال هم سال قبلِ همان فیلتر سنجیده می‌شود
-  const cctx = compareContext();
-  const curYear = cctx.cur;
-  const curRows = cctx.curRows;
-  const prevRows = cctx.prevRows;
-  const vs = (cur,prev,invert)=> (curYear && prevRows.length)
-    ? `<div class="vs">${deltaHtml(cur,prev,invert)} <span class="muted">نسبت به ${faDigits(curYear-1)}</span></div>` : "";
-  const vsRows = (pred)=> vs(curRows.filter(pred).length, prevRows.filter(pred).length, true);
-  const sc=statusCounts(rows);
-  const gap=Number((DATA.meta.review||{}).rows||0);
-  const cards=[
-    ["اخطارهای کیفی",fmt(total),curYear?`سال ${faDigits(curYear)}: ${fmt(curRows.length)}`:"ردیف انتخاب‌شده","", vs(curRows.length, prevRows.length, true)],
-    ["قطعات معیوب",fmt(qty),curYear?`سال ${faDigits(curYear)}: ${fmt(sum(curRows,"qty"))}`:"جمع تعداد قطعات","blue", vs(sum(curRows,"qty"), sum(prevRows,"qty"), true)],
-    ["خاتمه‌یافته",fmt(sc.closed),pct(total?sc.closed/total:0)+" از کل","teal", vsRows(isClosed)],
-    ["در حال بررسی",fmt(sc.inReview),pct(total?sc.inReview/total:0)+" از کل · بدون ریشهٔ ثبت‌شده","slate", vsRows(isInReview)],
-    ["عدم دریافت قطعه",fmt(sc.notReceived),gap?`${fmt(gap)} ردیف C-Plus بدون اخطار متناظر (اختلاف دو فایل)`:"از «آنالیز علت ایراد» برگهٔ بررسی","violet", vsRows(isNotReceived)]
-  ];
-  $("#kpis").innerHTML=cards.map(([l,v,s,c,extra],i)=>`<div class="kpi ${c}" data-kpi="${i}" role="button" tabindex="0" title="نمایش ریزش اطلاعات"><div class="label">${l}</div><div class="value">${v}</div><div class="sub">${s}</div>${extra||""}</div>`).join("");
-  const drills=[
-    ["همهٔ اخطارهای فیلترشده","مبنای گزارش؛ با فیلترهای بالای صفحه هماهنگ است",rows,()=>{state.quickFilter="";}],
-    ["قطعات معیوب","جمع تعداد قطعات معیوب همین ردیف‌ها",rows,()=>{state.quickFilter="";}],
-    ["خاتمه‌یافته",`${fmt(sc.closed)} اخطار خاتمه‌یافته در فیلتر فعلی`,rows.filter(isClosed),()=>{state.quickFilter="";}],
-    ["در حال بررسی",`${fmt(sc.inReview)} اخطار در حال بررسی در فیلتر فعلی`,rows.filter(isInReview),()=>{state.quickFilter="";}],
-    ["عدم دریافت قطعه",`${fmt(sc.notReceived)} اخطار با «عدم دریافت قطعه» در آنالیز علت ایراد`,rows.filter(isNotReceived),()=>{state.quickFilter="notreceived";state.status="";}]
-  ];
-  $$("#kpis [data-kpi]").forEach(card=>{
-    const [title,sub,list,apply]=drills[Number(card.dataset.kpi)];
-    card.addEventListener("click",()=>openBreakdown(title,sub,list,{apply:apply||undefined}));
-    card.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();card.click();}});
-  });
-}
-const HIDDEN_ROOTS=["اعلام نشده","عدم دریافت قطعه"];
-const isHiddenRoot=name=>HIDDEN_ROOTS.indexOf(name)>=0;
-function rootText(r){
-  const name=r.rootCause||"";
-  if(!name||isHiddenRoot(name)) return "—";
-  return name;
-}
-/* «عدم دریافت قطعه»: اخطاری که در برگهٔ بررسی «آنالیز علت ایراد» آن
-   «عدم دریافت قطعه» ثبت شده است (مبنای فایل C-Plus). */
+/* «عدم دریافت قطعه»: «آنالیز علت ایراد» برگهٔ بررسی این عبارت را دارد (فایل C-Plus). */
 const isNotReceived=r=>r.statusGroup?r.statusGroup==="عدم دریافت قطعه":(r.cause||"").replace(/ي/g,"ی").indexOf("عدم دریافت قطعه")>=0;
-/* سه گروه وضعیت، افراز کامل و بدون هم‌پوشانی:
-   خاتمه‌یافته + عدم دریافت قطعه + در حال بررسی = کل اخطارها.
-   «در حال بررسی» = برگهٔ بررسی دارد ولی «منشاء ایراد» (ریشهٔ فرآیندی) در آن
-   ثبت نشده، یا اخطارِ بازی است که هنوز برگهٔ بررسی ندارد. */
+/* سه گروه وضعیت، افراز کامل: خاتمه‌یافته + در حال بررسی + عدم دریافت قطعه = کل */
 const hasRootCause=r=>r.hasRoot===true || !!(r.process && r.process!=="نامشخص");
-const PROC_ORDER=["تولید","مواد اولیه","تامین‌کننده","طراحی مهندسی","مشتری"];
-/* میله‌های «واحد مسئول»: جمع همه = تعداد اخطارها (هیچ ردیفی گم نمی‌شود) */
-function makeProcessItems(rows){
-  const items=PROC_ORDER.map(name=>({name,warnings:rows.filter(r=>hasRootCause(r)&&!isNotReceived(r)&&r.process===name).length}));
-  items.push({name:"عدم دریافت قطعه",warnings:rows.filter(isNotReceived).length});
-  // بقیهٔ ردیف‌ها: نه ریشهٔ ثبت‌شده دارند نه منشاء ایراد → «در حال بررسی»
-  const known=PROC_ORDER.reduce((a,name)=>a+rows.filter(r=>hasRootCause(r)&&!isNotReceived(r)&&r.process===name).length,0);
-  items.push({name:"در حال بررسی",warnings:rows.length-known-rows.filter(isNotReceived).length});
-  return items.filter(i=>i.warnings>0);
-}
 const isInReview=r=>r.statusGroup?r.statusGroup==="در حال بررسی":!isNotReceived(r)&&((r.hasReview&&!hasRootCause(r))||!!r.open);
 const isClosed=r=>r.statusGroup?r.statusGroup==="خاتمه‌یافته":(!isNotReceived(r)&&!isInReview(r));
 const STATUS_GROUPS=["خاتمه‌یافته","در حال بررسی","عدم دریافت قطعه"];
@@ -1269,31 +1239,60 @@ const statusCounts=rows=>({
   inReview:rows.filter(isInReview).length,
   notReceived:rows.filter(isNotReceived).length
 });
+const PROC_ORDER=["تولید","مواد اولیه","تامین‌کننده","طراحی مهندسی","مشتری"];
+/* میله‌های «واحد مسئول»: جمع همه = تعداد اخطارها (هیچ ردیفی گم نمی‌شود) */
+function makeProcessItems(rows){
+  const items=PROC_ORDER.map(name=>({name,warnings:rows.filter(r=>hasRootCause(r)&&!isNotReceived(r)&&r.process===name).length}));
+  items.push({name:"عدم دریافت قطعه",warnings:rows.filter(isNotReceived).length});
+  const known=PROC_ORDER.reduce((a,name)=>a+rows.filter(r=>hasRootCause(r)&&!isNotReceived(r)&&r.process===name).length,0);
+  items.push({name:"در حال بررسی",warnings:rows.length-known-rows.filter(isNotReceived).length});
+  return items.filter(i=>i.warnings>0);
+}
+const HIDDEN_ROOTS=["اعلام نشده","عدم دریافت قطعه"];
+const isHiddenRoot=name=>HIDDEN_ROOTS.indexOf(name)>=0;
+function rootText(r){
+  const name=r.rootCause||"";
+  if(!name||isHiddenRoot(name)) return "—";
+  return name;
+}
 function renderCoverage(rows){
-  const el=$("#coverage-strip"); if(!el) return;
+  const el=$("#kpis"); if(!el) return;
   const total=rows.length;
   const sc=statusCounts(rows);
-  const unknown=rows.filter(r=>r.rootCause==="اعلام نشده").length;
+  const qty=sum(rows,"qty");
   const base=total||1;
+  const products=uniq(rows,"product");
+  const cctx=compareContext();
+  const curYear=cctx.cur;
+  const vs=(cur,prev)=>(curYear && cctx.prevRows.length)
+    ? `<div class="vs">${deltaHtml(cur,prev,true)} <span class="muted">نسبت به ${faDigits(curYear-1)}</span></div>` : "";
+  const vsRows=pred=>vs(cctx.curRows.filter(pred).length, cctx.prevRows.filter(pred).length);
   const items=[
-    ["کل اخطارها",total,"مبنای همهٔ درصدها","#0b64c8",()=>rows,null],
-    ["خاتمه‌یافته",sc.closed,pct(sc.closed/base)+" از کل","#0f9f8f",()=>rows.filter(isClosed),()=>{state.status="closed";state.quickFilter="";}],
-    ["در حال بررسی",sc.inReview,pct(sc.inReview/base)+" از کل · ریشهٔ ثبت‌نشده","#c47f0a",()=>rows.filter(isInReview),()=>{state.status="";state.quickFilter="";}],
-    ["عدم دریافت قطعه",sc.notReceived,pct(sc.notReceived/base)+" از کل · از C-Plus","#7c3aed",()=>rows.filter(isNotReceived),()=>{state.status="";state.quickFilter="notreceived";}]
+    {name:"اخطار کیفی", value:fmt(total), sub:curYear?`سال ${faDigits(curYear)}: ${fmt(cctx.curRows.length)}`:"ردیف انتخاب‌شده", color:"#0b64c8", accent:"blue",
+     extra:vs(cctx.curRows.length, cctx.prevRows.length), list:()=>rows, apply:null, title:"اخطارهای کیفی"},
+    {name:"خاتمه‌یافته", value:fmt(sc.closed), sub:`${pct(sc.closed/base)} از کل`, color:"#0f9f8f", accent:"teal",
+     extra:vsRows(isClosed), list:()=>rows.filter(isClosed), apply:()=>{state.status="closed";state.quickFilter="";}, title:"خاتمه‌یافته"},
+    {name:"در حال بررسی", value:fmt(sc.inReview), sub:`${pct(sc.inReview/base)} از کل · ریشهٔ ثبت‌نشده`, color:"#c47f0a", accent:"amber",
+     extra:vsRows(isInReview), list:()=>rows.filter(isInReview), apply:()=>{state.status="";state.quickFilter="";}, title:"در حال بررسی"},
+    {name:"عدم دریافت قطعه", value:fmt(sc.notReceived), sub:`${pct(sc.notReceived/base)} از کل · از C-Plus`, color:"#7c3aed", accent:"violet",
+     extra:vsRows(isNotReceived), list:()=>rows.filter(isNotReceived), apply:()=>{state.status="";state.quickFilter="notreceived";}, title:"عدم دریافت قطعه"},
+    {name:"قطعات کلیم‌شده", value:fmt(qty), sub:`${fmt(products)} محصول · جمع تعداد قطعات`, color:"#0284c7", accent:"blue",
+     extra:vs(sum(cctx.curRows,"qty"), sum(cctx.prevRows,"qty")), list:()=>rows, apply:null, title:"قطعات کلیم‌شده"}
   ];
-  el.innerHTML=items.map(([k,v,sub,color],index)=>`<div class="cov-item" data-cov="${index}" title="نمایش جزئیات ${esc(k)}">
-    <div class="k"><span class="cdot" style="background:${color}"></span>${esc(k)}</div>
-    <div class="v">${fmt(v)}</div>
-    <div class="s">${esc(sub)}</div>
+  el.innerHTML=items.map((item,index)=>`<div class="kpi ${item.accent}" data-kpi="${index}" role="button" tabindex="0" title="نمایش ریزش اطلاعات ${esc(item.name)}">
+    <div class="label"><span class="cdot" style="background:${item.color}"></span>${esc(item.name)}</div>
+    <div class="value">${item.value}</div>
+    <div class="sub">${esc(item.sub)}</div>
+    ${item.extra}
   </div>`).join("");
-  $$("#coverage-strip [data-cov]").forEach(item=>{
-    const [k,,sub,,pick,apply]=items[Number(item.dataset.cov)];
-    item.addEventListener("click",()=>openBreakdown(k,sub,pick(),{apply}));
+  $$("#kpis [data-kpi]").forEach(card=>{
+    const item=items[Number(card.dataset.kpi)];
+    const fire=()=>openBreakdown(item.title,item.sub,item.list(),{apply:item.apply||undefined});
+    card.addEventListener("click",fire);
+    card.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();fire();}});
   });
   const note=$("#coverage-note");
-  if(note) note.innerHTML=unknown
-    ? `سه گروه بدون هم‌پوشانی: <b>خاتمه‌یافته ${fmt(sc.closed)}</b> + <b>در حال بررسی ${fmt(sc.inReview)}</b> + <b>عدم دریافت قطعه ${fmt(sc.notReceived)}</b> = <b>${fmt(total)}</b> اخطار. «در حال بررسی» = برگهٔ بررسی دارد ولی «منشاء ایراد» (ریشهٔ فرآیندی) ثبت نشده، یا اخطارِ بازی است که برگهٔ بررسی ندارد. <span class="muted">(${fmt(unknown)} اخطار در متن خود علتی اعلام نکرده‌اند و در نمودار ریشه نمی‌آیند.)</span>`
-    : `روی هر کارت بزنید تا فهرست و ریزش همان گروه باز شود.`;
+  if(note) note.innerHTML=`سه گروه بدون هم‌پوشانی: <b>خاتمه‌یافته ${fmt(sc.closed)}</b> + <b>در حال بررسی ${fmt(sc.inReview)}</b> + <b>عدم دریافت قطعه ${fmt(sc.notReceived)}</b> = <b>${fmt(total)}</b> اخطار · روی هر کاشی بزنید تا ریزش اطلاعات همان گروه باز شود.`;
 }
 function rootRows(rows){
   const map=new Map();
@@ -1368,7 +1367,7 @@ function openBreakdown(title,subtitle,rows,opts){
       <div class="drill-title">${esc(title)}</div>
       <div class="drill-sub">${esc(subtitle||"")}</div>
       <div class="drill-stats">
-        ${[["اخطار",fmt(total)],["خاتمه‌یافته",fmt(sc.closed)],["در حال بررسی",fmt(sc.inReview)],["عدم دریافت قطعه",fmt(sc.notReceived)],["قطعه معیوب",fmt(qty)]]
+        ${[["اخطار",fmt(total)],["خاتمه‌یافته",fmt(sc.closed)],["در حال بررسی",fmt(sc.inReview)],["عدم دریافت قطعه",fmt(sc.notReceived)],["قطعات کلیم‌شده",fmt(qty)]]
           .map(([l,v])=>`<div class="drill-stat"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("")}
       </div>
     </div>
@@ -2880,7 +2879,6 @@ function switchTab(tab){
 function render(){
   const rows=applyFilters();
   syncSelects();
-  renderKpis(rows);
   renderCoverage(rows);
   renderRootPanel(rows);
   renderPareto(rows);
