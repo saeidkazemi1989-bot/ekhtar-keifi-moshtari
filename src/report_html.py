@@ -24,6 +24,39 @@ from .status import AUTO_COLUMN, DATE_KEY, PRIORITY_COLUMN, PRIORITY_RANK, RAW_C
 from .taxonomy import OUT_GROUP
 
 
+# نگاشت «منشاء ایراد» برگهٔ بررسی (C-Plus) به فرآیند مسئول.
+# ترتیب مهم است: عبارت‌های تک‌واژه‌ای و مرکب هر دو پوشش داده می‌شوند.
+PROCESS_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("تامین‌کننده", ("تامین", "تأمین")),
+    ("مواد اولیه", ("مواد",)),
+    ("طراحی مهندسی", ("طراحی", "مهندسی", "قالب")),
+    ("مشتری", ("مشتری",)),
+    ("تولید", ("اپراتور", "تجهیزات", "روش", "تولید", "نیروی انسانی", "محیط", "ماشین")),
+)
+PROCESS_UNKNOWN = "نامشخص"
+
+
+def _review_link_stats(enriched: pd.DataFrame, unmatched: pd.DataFrame | None) -> dict:
+    """وضعیت اتصال فایل C-Plus به فایل اخطارهای کیفی (برای نمایش شفاف در داشبورد)."""
+    rows = 0 if unmatched is None else len(unmatched)
+    return {
+        "rows": rows,                      # ردیف‌های C-Plus بدون اخطار متناظر
+        "matched": int((enriched["دارای برگه بررسی"] == "بله").sum()) if "دارای برگه بررسی" in enriched else 0,
+        "warnings": int(len(enriched)),
+    }
+
+
+def _process_bucket(value: object) -> str:
+    """فرآیند مسئول از ستون «منشاء ایراد»؛ چیزی حدس زده نمی‌شود."""
+    text = _clean_text(value).replace("ي", "ی").replace("ك", "ک")
+    if not text or text in {"nan", "None", "تحت بررسی", "ابطال"}:
+        return PROCESS_UNKNOWN
+    for name, keys in PROCESS_RULES:
+        if any(key in text for key in keys):
+            return name
+    return PROCESS_UNKNOWN
+
+
 def _clean_text(value: object) -> str:
     if value is None:
         return ""
@@ -108,6 +141,7 @@ def _payload(
                 "cause": _clean_text(row.get("آنالیز علت ایراد", "")),
                 "action": _clean_text(row.get("شرح اقدام اصلاحی", "")),
                 "reviewOrigin": _clean_text(row.get("منشاء ایراد", "")),
+                "process": _process_bucket(row.get("منشاء ایراد", "")),
                 "claimNo": _clean_text(row.get("شماره کلیم", "")),
                 "orangeCard": _clean_text(row.get("شماره کارت نارنجی", "")),
                 "reviewCategory": _clean_text(row.get("دسته محصول (بررسی)", "")),
@@ -178,6 +212,7 @@ def _payload(
             "subtitle": "بر اساس محصول، خانواده و گروه محصول — کاتالوگ راهکاران و فایل گروه‌بندی محصولات",
             "sources": source_names,
             "generated": _jalali_now(),
+            "review": _review_link_stats(enriched, unmatched),
         },
         "kpis": values,
         "groups": groups.to_dict(orient="records"),
@@ -360,6 +395,7 @@ main{padding:14px 18px 34px;max-width:1760px;margin:0 auto}
 .kpi:before{content:"";position:absolute;inset-inline:0;top:0;height:3px;background:linear-gradient(90deg,#0b64c8,#1487e0)}
 .kpi.blue:before{background:linear-gradient(90deg,#38bdf8,#0284c7)} .kpi.violet:before{background:linear-gradient(90deg,#6d8cf5,#1e4fd8)}
 .kpi.amber:before{background:linear-gradient(90deg,#fbbf24,#c47f0a)} .kpi.rose:before{background:linear-gradient(90deg,#fb7185,#d92d5c)} .kpi.slate:before{background:linear-gradient(90deg,#94a3b8,#5b7288)}
+.kpi.teal:before{background:linear-gradient(90deg,#34d3c0,#0e7f9a)}
 .kpi .label{font-size:10.8px;color:var(--muted);font-weight:700;letter-spacing:.15px}
 .kpi .value{font-size:21px;font-weight:800;letter-spacing:-.4px;margin-top:2px;font-variant-numeric:tabular-nums}
 .kpi .sub{font-size:10.2px;color:var(--muted);margin-top:1px}
@@ -706,6 +742,7 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
   <div class="field"><label>برگه بررسی</label><select id="f-review"></select></div>
   <div class="field"><label>ریشهٔ ایراد</label><select id="f-root"></select></div>
   <div class="field"><label>قطعهٔ تحلیل</label><select id="f-rootpart"></select></div>
+  <div class="field"><label>فرآیند مسئول</label><select id="f-process"></select></div>
   <div class="filter-actions" style="grid-column:span 4">
     <button class="btn" id="reset">پاک‌کردن</button>
     <button class="btn primary" id="export">خروجی CSV</button>
@@ -778,8 +815,9 @@ footer{padding:18px 22px;color:var(--muted);font-size:11px;text-align:center}
         <div class="bars" id="ov-defect-bars"></div>
       </div>
       <div class="card">
-        <h3>واحد مسئول <span class="hint">گروه ساخت</span></h3>
+        <h3>واحد مسئول <span class="hint">فرآیند از برگهٔ بررسی (C-Plus)</span></h3>
         <div class="bars" id="ov-make-bars"></div>
+        <div class="muted tiny" id="ov-process-note" style="margin-top:6px"></div>
       </div>
     </div>
 
@@ -1024,7 +1062,7 @@ const confBadge = c => {
 const reviewBadge = r => r.review ? '<span class="badge red">بازبینی</span>' : "";
 const catalogBadge = r => r.inCatalog ? '<span class="badge green">کاتالوگ</span>' : (r.inScope ? '<span class="badge slate">سایر</span>' : '<span class="badge slate">خارج</span>');
 
-const state = {group:"",family:"",product:"",car:"",grade:"",status:"",priority:"",year:"",from:"",to:"",q:"",m6:"",make:"",tab:"overview",warningSort:"priority",
+const state = {group:"",family:"",product:"",car:"",grade:"",status:"",priority:"",year:"",from:"",to:"",q:"",m6:"",make:"",process:"",tab:"overview",warningSort:"priority",
   review:"",branch:"",defect:"",root:"",rootPart:"",quickFilter:"",defectCat:"all",productQ:"",warningQ:"",reviewQ:"",defectQ:"",formQ:"",formStatus:"",formScope:"working",paretoQ:"",
   page:1,pageSize:25,productSort:{key:"warnings",dir:-1},trendMode:"month",trendCompare:true,barsCompare:false};
 let currentProducts = [];
@@ -1057,7 +1095,7 @@ function applyFilters(opts){
     if(state.rootPart && r.analysisPart!==state.rootPart) return false;
     if(state.m6 && (r.m6||"نامشخص")!==state.m6) return false;
     if(state.make && r.make!==state.make) return false;
-    if(state.quickFilter==="review" && !isUnderReview(r)) return false;
+    if(state.process && r.process!==state.process) return false;
     if(state.quickFilter==="notreceived" && !isNotReceived(r)) return false;
     if(state.car && r.car!==state.car) return false;
     if(state.grade && r.grade!==state.grade) return false;
@@ -1124,8 +1162,7 @@ function renderPriorityNote(){
 function renderKpis(rows){
   const total=rows.length, qty=sum(rows,"qty"), score=sum(rows,"score"), open=rows.filter(r=>r.open).length;
   const auto=rows.filter(r=>r.autoClosed).length;
-  const inScope=rows.filter(r=>r.inScope).length, inCatalog=rows.filter(r=>r.inCatalog).length;
-  const products=uniq(rows,"product"), review=rows.filter(r=>r.review).length;
+
   const reviewed=rows.filter(r=>r.hasReview).length;
   // مقایسهٔ سال جاری با سال قبل؛ با فیلتر سال هم سال قبلِ همان فیلتر سنجیده می‌شود
   const cctx = compareContext();
@@ -1135,22 +1172,22 @@ function renderKpis(rows){
   const vs = (cur,prev,invert)=> (curYear && prevRows.length)
     ? `<div class="vs">${deltaHtml(cur,prev,invert)} <span class="muted">نسبت به ${faDigits(curYear-1)}</span></div>` : "";
   const vsRows = (pred)=> vs(curRows.filter(pred).length, prevRows.filter(pred).length, true);
+  const notReceived=rows.filter(isNotReceived).length;
+  const gap=Number((DATA.meta.review||{}).rows||0);
   const cards=[
     ["اخطارهای کیفی",fmt(total),curYear?`سال ${faDigits(curYear)}: ${fmt(curRows.length)}`:"ردیف انتخاب‌شده","", vs(curRows.length, prevRows.length, true)],
     ["قطعات معیوب",fmt(qty),curYear?`سال ${faDigits(curYear)}: ${fmt(sum(curRows,"qty"))}`:"جمع تعداد قطعات","blue", vs(sum(curRows,"qty"), sum(prevRows,"qty"), true)],
-    ["نمره منفی مرجع",fmt(score),curYear?`سال ${faDigits(curYear)}: ${fmt(sum(curRows,"score"))}`:"مجموع امتیاز","violet", vs(sum(curRows,"score"), sum(prevRows,"score"), true)],
-    ["محصولات درگیر",fmt(products),curYear?`سال ${faDigits(curYear)}: ${fmt(uniq(curRows,"product"))}`:"محصول متمایز","amber", ""],
-    ["پوشش گروه‌بندی",pct(total?inScope/total:0),`${fmt(inScope)} ردیف در دامنه`,"rose", ""],
-    ["اخطارهای باز",fmt(open),`${fmt(auto)} خودکار خاتمه · ${fmt(reviewed)} برگه بررسی (${pct(total?reviewed/total:0)})`,"slate", vsRows(r=>r.open)]
+    ["اخطارهای باز",fmt(open),pct(total?open/total:0)+" از کل · هر وضعیتی جز خاتمه‌یافته","slate", vsRows(r=>r.open)],
+    ["خاتمه‌یافته",fmt(total-open),pct(total?(total-open)/total:0)+" از کل","teal", vsRows(r=>!r.open)],
+    ["عدم دریافت قطعه",fmt(notReceived),gap?`${fmt(gap)} ردیف C-Plus بدون اخطار متناظر (اختلاف دو فایل)`:"از «آنالیز علت ایراد» برگهٔ بررسی","violet", vsRows(isNotReceived)]
   ];
   $("#kpis").innerHTML=cards.map(([l,v,s,c,extra],i)=>`<div class="kpi ${c}" data-kpi="${i}" role="button" tabindex="0" title="نمایش ریزش اطلاعات"><div class="label">${l}</div><div class="value">${v}</div><div class="sub">${s}</div>${extra||""}</div>`).join("");
   const drills=[
     ["همهٔ اخطارهای فیلترشده","مبنای گزارش؛ با فیلترهای بالای صفحه هماهنگ است",rows,()=>{state.quickFilter="";}],
     ["قطعات معیوب","جمع تعداد قطعات معیوب همین ردیف‌ها",rows,()=>{state.quickFilter="";}],
-    ["نمرهٔ منفی مرجع","مجموع امتیاز منفی همین ردیف‌ها",rows,()=>{state.quickFilter="";}],
-    ["محصولات درگیر",`${fmt(products)} محصول متمایز در ردیف‌های فیلترشده`,rows,()=>{state.quickFilter="";}],
-    ["پوشش گروه‌بندی",`${fmt(inScope)} ردیف در دامنهٔ گروه‌بندی`,rows.filter(r=>r.inScope),null],
-    ["اخطارهای باز",`${fmt(open)} اخطار باز در فیلتر فعلی`,rows.filter(r=>r.open),()=>{state.status="open";state.quickFilter="";}]
+    ["اخطارهای باز",`${fmt(open)} اخطار باز در فیلتر فعلی`,rows.filter(r=>r.open),()=>{state.status="open";state.quickFilter="";}],
+    ["خاتمه‌یافته",`${fmt(total-open)} اخطار خاتمه‌یافته در فیلتر فعلی`,rows.filter(r=>!r.open),()=>{state.status="closed";state.quickFilter="";}],
+    ["عدم دریافت قطعه",`${fmt(notReceived)} اخطار با «عدم دریافت قطعه» در آنالیز علت ایراد`,rows.filter(isNotReceived),()=>{state.quickFilter="notreceived";state.status="";}]
   ];
   $$("#kpis [data-kpi]").forEach(card=>{
     const [title,sub,list,apply]=drills[Number(card.dataset.kpi)];
@@ -1165,23 +1202,22 @@ function rootText(r){
   if(!name||isHiddenRoot(name)) return "—";
   return name;
 }
-const isUnderReview=r=>!!r.open && (r.status==="اقدام كوتاه مدت"||r.status==="اقدام ميان مدت");
-const isNotReceived=r=>!!r.open && !isUnderReview(r);
+/* «عدم دریافت قطعه»: اخطاری که در برگهٔ بررسی «آنالیز علت ایراد» آن
+   «عدم دریافت قطعه» ثبت شده است (مبنای فایل C-Plus). */
+const isNotReceived=r=>(r.cause||"").replace(/ي/g,"ی").indexOf("عدم دریافت قطعه")>=0;
 function renderCoverage(rows){
   const el=$("#coverage-strip"); if(!el) return;
   const total=rows.length;
   const open=rows.filter(r=>r.open).length;
-  const review=rows.filter(isUnderReview).length;
-  const notReceived=rows.filter(isNotReceived).length;
   const closed=rows.filter(r=>!r.open).length;
+  const notReceived=rows.filter(isNotReceived).length;
   const unknown=rows.filter(r=>r.rootCause==="اعلام نشده").length;
   const base=total||1;
   const items=[
     ["کل اخطارها",total,"مبنای همهٔ درصدها","#0b64c8",()=>rows,null],
     ["باز",open,pct(open/base)+" از کل","#d92d5c",()=>rows.filter(r=>r.open),()=>{state.status="open";state.quickFilter="";}],
-    ["در حال بررسی",review,"باز با اقدام کوتاه/میان‌مدت","#c47f0a",()=>rows.filter(isUnderReview),()=>{state.status="";state.quickFilter="review";}],
-    ["دریافت نشده",notReceived,"باز بدون اقدام ثبت‌شده","#7c3aed",()=>rows.filter(isNotReceived),()=>{state.status="";state.quickFilter="notreceived";}],
-    ["خاتمه‌یافته",closed,pct(closed/base)+" از کل","#0f9f8f",()=>rows.filter(r=>!r.open),()=>{state.status="closed";state.quickFilter="";}]
+    ["خاتمه‌یافته",closed,pct(closed/base)+" از کل","#0f9f8f",()=>rows.filter(r=>!r.open),()=>{state.status="closed";state.quickFilter="";}],
+    ["عدم دریافت قطعه",notReceived,"از برگهٔ بررسی (C-Plus)","#7c3aed",()=>rows.filter(isNotReceived),()=>{state.status="";state.quickFilter="notreceived";}]
   ];
   el.innerHTML=items.map(([k,v,sub,color],index)=>`<div class="cov-item" data-cov="${index}" title="نمایش جزئیات ${esc(k)}">
     <div class="k"><span class="cdot" style="background:${color}"></span>${esc(k)}</div>
@@ -1194,7 +1230,7 @@ function renderCoverage(rows){
   });
   const note=$("#coverage-note");
   if(note) note.innerHTML=unknown
-    ? `<b>${fmt(unknown)}</b> اخطار (${pct(unknown/base)}) در متن خود علتی اعلام نکرده‌اند و «قطعه دریافت‌نشده» هم جدا شمرده شده است؛ این دو فقط همین‌جا نمایش داده می‌شوند و در نمودار ریشه و فیلترها نمی‌آیند. روی هر کارت بزنید تا فهرست و ریزش همان گروه باز شود.`
+    ? `<b>${fmt(unknown)}</b> اخطار در متن خود علتی اعلام نکرده‌اند و در نمودار ریشه نمی‌آیند. «باز» = هر وضعیتی جز «خاتمه يافته» · «عدم دریافت قطعه» از ستون «آنالیز علت ایراد» برگهٔ بررسی (C-Plus) شمرده می‌شود. روی هر کارت بزنید تا فهرست و ریزش همان گروه باز شود.`
     : `روی هر کارت بزنید تا فهرست و ریزش همان گروه باز شود.`;
 }
 function rootRows(rows){
@@ -1254,7 +1290,7 @@ function openBreakdown(title,subtitle,rows,opts){
   const box=$(".modal-box"); if(box) box.scrollTop=0;
   const total=rows.length;
   const open=rows.filter(r=>r.open).length;
-  const review=rows.filter(isUnderReview).length;
+  const notReceived=rows.filter(isNotReceived).length;
   const qty=sum(rows,"qty");
   const products=new Set(rows.map(r=>r.product)).size;
   const roots=rootRows(rows).filter(i=>!isHiddenRoot(i.name)).slice(0,7);
@@ -1271,7 +1307,7 @@ function openBreakdown(title,subtitle,rows,opts){
       <div class="drill-title">${esc(title)}</div>
       <div class="drill-sub">${esc(subtitle||"")}</div>
       <div class="drill-stats">
-        ${[["اخطار",fmt(total)],["باز",fmt(open)],["در حال بررسی",fmt(review)],["قطعه معیوب",fmt(qty)],["محصول",fmt(products)]]
+        ${[["اخطار",fmt(total)],["باز",fmt(open)],["خاتمه‌یافته",fmt(total-open)],["عدم دریافت قطعه",fmt(notReceived)],["قطعه معیوب",fmt(qty)]]
           .map(([l,v])=>`<div class="drill-stat"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("")}
       </div>
     </div>
@@ -1282,9 +1318,9 @@ function openBreakdown(title,subtitle,rows,opts){
     <div class="drill-grid">
       <div class="drill-card"><h4>پرتکرارترین ایراد مشتری</h4>${drillBars(defects,"#d92d5c")}</div>
       <div class="drill-card"><h4>وضعیت اخطارها</h4>${drillBars([
-        {name:"در حال بررسی",warnings:review},
-        {name:"دریافت نشده",warnings:open-review},
-        {name:"خاتمه‌یافته",warnings:total-open}
+        {name:"خاتمه‌یافته",warnings:total-open},
+        {name:"باز",warnings:open},
+        {name:"عدم دریافت قطعه",warnings:notReceived}
       ].filter(i=>i.warnings>0),"#7c3aed")}</div>
     </div>
     <div class="drill-card">
@@ -1387,16 +1423,16 @@ function openGroupDrill(name,cfg){
   const match=r=>(r[field]||"نامشخص")===value;
   const rows=base.filter(match);
   const open=rows.filter(r=>r.open).length;
-  const review=rows.filter(isUnderReview).length;
+  const notReceived=rows.filter(isNotReceived).length;
   const qty=sum(rows,"qty");
   const products=new Set(rows.map(r=>r.product)).size;
   const roots=rootRows(rows).filter(i=>!isHiddenRoot(i.name)).slice(0,7);
   const parts=paretoRows(rows.filter(r=>!!r.analysisPart)).slice(0,7);
   const defects=defectRows(rows).slice(0,7);
   const statusItems=[
-    {name:"در حال بررسی",warnings:review},
-    {name:"دریافت نشده",warnings:open-review},
-    {name:"خاتمه‌یافته",warnings:rows.length-open}
+    {name:"خاتمه‌یافته",warnings:open===rows.length?0:rows.length-open},
+    {name:"باز",warnings:open},
+    {name:"عدم دریافت قطعه",warnings:notReceived}
   ].filter(i=>i.warnings>0);
   const list=rows.slice().sort(byPriority).slice(0,40);
   $("#modal-title").textContent=cfg.title?`${cfg.title}: ${name}`:`ریزش اطلاعات: ${name}`;
@@ -1406,7 +1442,7 @@ function openGroupDrill(name,cfg){
       <div class="drill-title">${esc(name)}</div>
       <div class="drill-sub">${esc(cfg.subtitle||"")}${state.year?` · سال ${faDigits(state.year)}`:""}</div>
       <div class="drill-stats">
-        ${[["اخطار",fmt(rows.length)],["باز",fmt(open)],["در حال بررسی",fmt(review)],["قطعه معیوب",fmt(qty)],["محصول",fmt(products)]]
+        ${[["اخطار",fmt(rows.length)],["باز",fmt(open)],["خاتمه‌یافته",fmt(rows.length-open)],["عدم دریافت قطعه",fmt(notReceived)],["قطعه معیوب",fmt(qty)]]
           .map(([l,v])=>`<div class="drill-stat"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("")}
       </div>
     </div>
@@ -1459,6 +1495,8 @@ const BAR_DRILL = {
           subtitle:"گروه ایرادی که مشتری در «توضیحات» اعلام کرده است"},
   make:  {title:"واحد مسئول", field:"make", kicker:"ریزش اطلاعات · واحد مسئول",
           subtitle:"گروه ساخت (واحد سازنده/مسئول) همین اخطارها", apply:name=>{state.make=name;}},
+  process:{title:"فرآیند مسئول", field:"process", kicker:"ریزش اطلاعات · فرآیند مسئول",
+          subtitle:"از ستون «منشاء ایراد» برگهٔ بررسی (C-Plus)", apply:name=>{state.process=name;}},
   m6:    {title:"علت‌ها بر پایهٔ ۶M", field:"m6", kicker:"ریزش اطلاعات · ۶M",
           subtitle:"دستهٔ علت (مواد، روش، تجهیزات، نیروی انسانی، محیط، اندازه‌گیری) از برگهٔ بررسی",
           apply:name=>{state.m6=name;}}, 
@@ -1561,7 +1599,8 @@ function renderActiveFilters(){
   if(state.defect) chips.push(`<span class="fchip">ایراد مشتری: ${esc(state.defect)}<button data-clear="defect" title="حذف فیلتر">×</button></span>`);
   if(state.m6) chips.push(`<span class="fchip">۶M: ${esc(state.m6)}<button data-clear="m6" title="حذف فیلتر">×</button></span>`);
   if(state.make) chips.push(`<span class="fchip">واحد مسئول: ${esc(state.make)}<button data-clear="make" title="حذف فیلتر">×</button></span>`);
-  if(state.quickFilter) chips.push(`<span class="fchip">${state.quickFilter==="review"?"فقط در حال بررسی":"فقط دریافت‌نشده"}<button data-clear="quickFilter" title="حذف فیلتر">×</button></span>`);
+  if(state.process) chips.push(`<span class="fchip">فرآیند مسئول: ${esc(state.process)}<button data-clear="process" title="حذف فیلتر">×</button></span>`);
+  if(state.quickFilter==="notreceived") chips.push(`<span class="fchip">فقط «عدم دریافت قطعه»<button data-clear="quickFilter" title="حذف فیلتر">×</button></span>`);
   if(!chips.length){ el.innerHTML=""; return; }
   el.innerHTML=chips.join("")+`<button class="fchip clear" id="clear-linked" style="cursor:pointer">پاک‌کردن فیلترهای لینک‌شده</button>`;
   $$("#warnings-active-filters [data-clear]").forEach(btn=>btn.addEventListener("click",()=>{
@@ -1805,8 +1844,6 @@ function stageName(s){ return s==="خاتمه يافته" ? "خاتمه‌یاف
 
 function renderStatusDonut(el, rows){
   if(!rows.length){ empty(el); return; }
-  const counts = {};
-  rows.forEach(r=>{ const k=r.status||"نامشخص"; counts[k]=(counts[k]||0)+1; });
   const closed = rows.filter(r=>!r.open).length;
   const open = rows.length - closed;
   const total = rows.length || 1;
@@ -1814,10 +1851,12 @@ function renderStatusDonut(el, rows){
   const closedLen = circ*(closed/total);
   const arcs = `<circle cx="${c}" cy="${c}" r="${r0}" fill="none" stroke="#0e7f9a" stroke-width="${stroke}" stroke-dasharray="${closedLen} ${circ-closedLen}" stroke-dashoffset="0" transform="rotate(-90 ${c} ${c})"><title>خاتمه‌یافته: ${fmt(closed)}</title></circle>
     <circle cx="${c}" cy="${c}" r="${r0}" fill="none" stroke="#d92d5c" stroke-width="${stroke}" stroke-dasharray="${circ-closedLen} ${circ-(circ-closedLen)}" stroke-dashoffset="${-closedLen}" transform="rotate(-90 ${c} ${c})"><title>باز: ${fmt(open)}</title></circle>`;
-  const order = ["خاتمه يافته","اقدام ميان مدت","اقدام كوتاه مدت","تنظيم"];
-  const legend = order.filter(k=>counts[k]).map(k=>`<div class="legend-item" data-stage="${esc(k)}">
-      <span class="dot" style="background:${STAGE_COLORS[k]||"#94a3b8"}"></span>
-      <span class="name">${esc(stageName(k))}</span><span class="num">${fmt(counts[k])} · ${pct(counts[k]/total)}</span></div>`).join("");
+  const legend = [
+      ["خاتمه‌یافته",closed,"#0e7f9a"],
+      ["باز",open,"#d92d5c"]
+    ].map(([name,value,color])=>`<div class="legend-item" data-stage="${esc(name)}">
+      <span class="dot" style="background:${color}"></span>
+      <span class="name">${esc(name)}</span><span class="num">${fmt(value)} · ${pct(value/total)}</span></div>`).join("");
   el.innerHTML=`<div class="donut-wrap"><svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
     <circle cx="${c}" cy="${c}" r="${r0}" fill="none" stroke="#eef2f7" stroke-width="${stroke}"></circle>${arcs}
     <text x="${c}" y="${c-4}" text-anchor="middle" font-size="20" font-weight="800" fill="#0f172a">${fmt(open)}</text>
@@ -1825,7 +1864,7 @@ function renderStatusDonut(el, rows){
   </svg><div class="donut-legend">${legend}</div></div>`;
 }
 
-/* جزئیات وضعیت: ترکیب سه‌گانهٔ وضعیت + مراحل اقدام کوتاه/میان‌مدت در یک کارت */
+/* جزئیات وضعیت: سه گروه — خاتمه‌یافته، باز، عدم دریافت قطعه */
 /* کارت ۶M در نمای کلی: اگر سال انتخاب‌شده علت ۶M ثبت‌شده نداشته باشد، جای
    نمودار خالی، وضعیت و پوشش داده توضیح داده می‌شود (بدون اختراع عدد). */
 function renderM6Overview(rows, items, opts){
@@ -1854,46 +1893,40 @@ function renderStatusDetail(rows){
   if(!el) return;
   const n=rows.length||1;
   const closed=rows.filter(r=>!r.open).length;
-  const review=rows.filter(isUnderReview).length;
+  const open=rows.length-closed;
   const notReceived=rows.filter(isNotReceived).length;
   if(total) total.textContent=`${fmt(rows.length)} اخطار`;
   const items=[
     {name:"خاتمه‌یافته", value:closed, color:"#0e7f9a", hint:"رسیدگی تمام شده"},
-    {name:"در حال بررسی", value:review, color:"#0b64c8", hint:"برگهٔ بررسی فعال"},
-    {name:"عدم دریافت قطعه", value:notReceived, color:"#d92d5c", hint:"منتظر قطعه"}
+    {name:"باز", value:open, color:"#d92d5c", hint:"هر وضعیتی جز خاتمه‌یافته"},
+    {name:"عدم دریافت قطعه", value:notReceived, color:"#7c3aed", hint:"از برگهٔ بررسی"}
   ];
   const max=Math.max(1,...items.map(i=>i.value));
-  const ctxYears=compareContext();
-  const diffClosed=ctxYears.curRows.filter(r=>!r.open).length - ctxYears.prevRows.filter(r=>!r.open).length;
-  const bars=items.map(i=>`<div class="bar-row" style="cursor:pointer" data-status="${esc(i.name)}">
+  const bars=items.map(i=>`<div class="bar-row clickable" style="cursor:pointer" data-status="${esc(i.name)}" role="button" tabindex="0" title="ریزش اطلاعات ${esc(i.name)}">
       <div class="label">${esc(i.name)}<span class="muted tiny"> ${esc(i.hint)}</span></div>
       <div class="track"><div class="fill" style="width:${i.value/max*100}%;background:${i.color}"></div></div>
       <div class="val">${fmt(i.value)} · ${pct(i.value/n)}</div></div>`).join("");
-  const st=groupAgg(rows,"stAction").sort((a,b)=>b.warnings-a.warnings).slice(0,4);
-  const mt=groupAgg(rows,"mtAction").sort((a,b)=>b.warnings-a.warnings).slice(0,4);
-  const mini=(title,list,color)=>`<div style="margin-top:8px">
-      <div class="tiny muted" style="font-weight:700;margin-bottom:3px">${title}</div>
-      ${list.length?list.map(i=>`<div class="bar-row"><div class="label" title="${esc(i.name||"—")}">${esc(i.name||"—")}</div>
-        <div class="track"><div class="fill" style="width:${i.warnings/(list[0].warnings||1)*100}%;background:${color}"></div></div>
-        <div class="val">${fmt(i.warnings)}</div></div>`).join(""):'<div class="muted tiny">—</div>'}
-    </div>`;
-  el.innerHTML=bars+mini("اقدام کوتاه مدت",st,"#d92d5c")+mini("اقدام میان مدت",mt,"#c47f0a");
-  $$("[data-status]",el).forEach(row=>row.addEventListener("click",()=>{
-    const key=row.dataset.status;
-    const base=applyFilters();
-    if(key==="در حال بررسی"){
-      openBreakdown("در حال بررسی","اخطارهایی که برگهٔ بررسی فعال دارند",base.filter(isUnderReview),
-        {apply:()=>{state.quickFilter="review";state.page=1;}});
-      return;
-    }
-    if(key==="عدم دریافت قطعه"){
-      openBreakdown("عدم دریافت قطعه","اخطارهای باز که قطعه دریافت نشده است",base.filter(isNotReceived),
-        {apply:()=>{state.quickFilter="notreceived";state.page=1;}});
-      return;
-    }
-    openBreakdown("خاتمه‌یافته","اخطارهای رسیدگی‌شده",base.filter(r=>!r.open),
-      {apply:()=>{state.quickFilter="";state.status="closed";state.page=1;}});
-  }));
+  el.innerHTML=bars;
+  $$("[data-status]",el).forEach(row=>{
+    const openIt=()=>{
+      const key=row.dataset.status;
+      const base=applyFilters();
+      if(key==="باز"){
+        openBreakdown("باز","همهٔ اخطارهایی که وضعیتشان «خاتمه يافته» نیست",base.filter(r=>r.open),
+          {apply:()=>{state.status="open";state.quickFilter="";state.page=1;}});
+        return;
+      }
+      if(key==="عدم دریافت قطعه"){
+        openBreakdown("عدم دریافت قطعه","اخطارهایی که در «آنالیز علت ایراد» برگهٔ بررسی، عدم دریافت قطعه ثبت شده",base.filter(isNotReceived),
+          {apply:()=>{state.quickFilter="notreceived";state.page=1;}});
+        return;
+      }
+      openBreakdown("خاتمه‌یافته","اخطارهای رسیدگی‌شده",base.filter(r=>!r.open),
+        {apply:()=>{state.quickFilter="";state.status="closed";state.page=1;}});
+    };
+    row.addEventListener("click",openIt);
+    row.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openIt();}});
+  });
 }
 
 function renderActionBars(rows){
@@ -2673,6 +2706,8 @@ function initFilters(){
   fillSelect($("#f-root"),roots,state.root);
   const rootParts=Array.from(new Set(DATA.warnings.map(r=>r.analysisPart).filter(Boolean))).sort((a,b)=>a.localeCompare(b,"fa"));
   fillSelect($("#f-rootpart"),rootParts,state.rootPart);
+  const processes=["تولید","مواد اولیه","تامین‌کننده","طراحی مهندسی","مشتری"];
+  fillSelect($("#f-process"),processes,state.process);
   $("#f-priority").innerHTML=`<option value="">همه اولویت‌ها</option>`+
     [["1","باز — سال جاری"],["2","باز — یک‌سال گذشته"],["3","باز — بدون تاریخ"],["4","خاتمهٔ خودکار"],["5","خاتمه‌یافته"]]
       .map(([value,label])=>`<option value="${value}">${label}</option>`).join("");
@@ -2690,6 +2725,7 @@ function initFilters(){
   $("#f-review").addEventListener("change",e=>{state.review=e.target.value;state.page=1;render();});
   $("#f-root").addEventListener("change",e=>{state.root=e.target.value;state.page=1;render();});
   $("#f-rootpart").addEventListener("change",e=>{state.rootPart=e.target.value;state.page=1;render();});
+  $("#f-process").addEventListener("change",e=>{state.process=e.target.value;state.page=1;render();});
   $("#f-year").addEventListener("change",e=>{
     state.year=e.target.value; state.from=""; state.to=""; state.page=1;
     refreshMonthSelects();
@@ -2733,7 +2769,7 @@ function initFilters(){
   $("#form-export-json").addEventListener("click",exportFormJson);
   FORM_STORE.init().then(()=>{renderFormsTab(applyFilters());});
   $$("#tabs .tab").forEach(btn=>btn.addEventListener("click",()=>{
-    // فیلتر سریع «در حال بررسی/دریافت نشده» فقط برای فهرست است؛ با برگشتن به
+    // فیلتر سریع «عدم دریافت قطعه» فقط برای فهرست است؛ با برگشتن به
     // نمای کلی پاک می‌شود تا نوار جمع‌بندی همیشه کل اخطارهای فیلترشده را نشان دهد
     if(btn.dataset.tab==="overview" && state.quickFilter){ state.quickFilter=""; render(); }
     switchTab(btn.dataset.tab);
@@ -2784,17 +2820,29 @@ function render(){
   renderActionBars(rows);
   renderTrend($("#trend"),rows);
   const barOpts=kind=>({click:barClick(kind), compare:state.barsCompare});
+  // سال قبل از مجموعهٔ «بدون فیلتر سال» شمرده می‌شود؛ وگرنه همیشه صفر می‌شود
+  const prevPool=applyFilters({skipYear:true});
   const withPrev=(items,field)=>{
     if(!state.barsCompare) return items;
     const {prev}=compareYears();
-    return items.map(i=>Object.assign({},i,{prev: rows.filter(r=>Number(r.year)===prev && (r[field]||"نامشخص")===i.name).length}));
+    return items.map(i=>Object.assign({},i,{prev: prevPool.filter(r=>Number(r.year)===prev && (r[field]||"نامشخص")===i.name).length}));
   };
   const defectItems=withPrev(groupAgg(rows,"defectGroup").sort((a,b)=>b.warnings-a.warnings).slice(0,8),"defectGroup");
-  const makeItems=withPrev(groupAgg(rows,"make").sort((a,b)=>b.warnings-a.warnings).slice(0,8),"make");
+  // «واحد مسئول» = فرآیند مسئول از ستون «منشاء ایراد» برگهٔ بررسی (C-Plus)
+  const PROC_ORDER=["تولید","مواد اولیه","تامین‌کننده","طراحی مهندسی","مشتری"];
+  const makeItems=PROC_ORDER
+    .map(name=>({name,warnings:rows.filter(r=>r.process===name).length}))
+    .filter(i=>i.warnings>0);
   const m6Items=withPrev(groupAgg(rows.filter(r=>r.m6 && r.m6!=="نامشخص"),"m6").sort((a,b)=>b.warnings-a.warnings).slice(0,7),"m6");
   syncBarsCompareLegend();
   renderBars($("#ov-defect-bars"), defectItems, "warnings", ()=> "#d92d5c", null, barOpts("defect"));
-  renderBars($("#ov-make-bars"), makeItems, "warnings", ()=> "#0b64c8", null, barOpts("make"));
+  renderBars($("#ov-make-bars"), makeItems, "warnings", ()=> "#0b64c8", null, barOpts("process"));
+  const procNote=$("#ov-process-note");
+  if(procNote){
+    const withProc=rows.filter(r=>r.process&&r.process!=="نامشخص").length;
+    const noReview=rows.filter(r=>!r.hasReview).length;
+    procNote.innerHTML=`${fmt(withProc)} از ${fmt(rows.length)} اخطار «منشاء ایراد» ثبت‌شده دارند · ${fmt(noReview)} اخطار بدون برگهٔ بررسی (نامشخص)`;
+  }
   renderM6Overview(rows, m6Items, barOpts("m6"));
   renderBars($("#family-bars"), withPrev(groupAgg(rows,"family").sort((a,b)=>b.warnings-a.warnings).slice(0,12),"family"), "warnings",
     i=>color((rows.find(r=>r.family===i.name)||{}).group||"#0e7f9a"), i=>i.name, barOpts("family"));
