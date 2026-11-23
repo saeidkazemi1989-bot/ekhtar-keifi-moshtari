@@ -6,3 +6,7 @@ output/
 
 data/*
 !data/README.md
+
+# بستهٔ تولیدشده؛ وابستگی‌ها و خروجی در مخزن ذخیره نشوند
+portable-windows/
+dashboard-windows.zip

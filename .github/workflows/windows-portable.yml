@@ -1,0 +1,32 @@
+name: Build portable Windows dashboard
+on:
+  push:
+    branches:
+      - 'arena/e902c61f-ekhtar-keifi-moshtari'
+    paths:
+      - 'packaging/**'
+      - '.github/workflows/windows-portable.yml'
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build package with official embedded Python
+        run: python packaging/build_windows.py
+      - name: Test actual Windows package
+        run: python packaging/test_windows.py
+      - name: Zip portable folder
+        shell: pwsh
+        run: Compress-Archive -Path portable-windows -DestinationPath dashboard-windows.zip -CompressionLevel Optimal
+      - name: Upload portable package
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-windows
+          path: dashboard-windows.zip
+          retention-days: 14
