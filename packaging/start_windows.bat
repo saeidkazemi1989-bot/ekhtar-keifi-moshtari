@@ -17,7 +17,7 @@ if not exist "output\index.html" (
   )
 )
 echo Starting dashboard. Keep this window open while using it.
-"runtime\python.exe" serve.py --port 8000
+"runtime\python.exe" serve.py --host 127.0.0.1 --port 8000
 if errorlevel 1 (
   echo The dashboard could not start. If another copy is running, close it and try again.
   pause
